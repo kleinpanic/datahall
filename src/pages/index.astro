@@ -1,0 +1,55 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ExhibitCard from '../components/ExhibitCard.astro';
+import { exhibits, exhibitSlugs } from '../lib/exhibits';
+import { SITE_TAGLINE, withBase } from '../consts';
+---
+
+<BaseLayout description={SITE_TAGLINE}>
+  <section class="mb-16">
+    <p class="pill mb-6">An interactive web museum</p>
+    <h1 class="display-heading mb-6 text-5xl leading-[1.05] md:text-6xl">
+      Pull back the cover on <span class="accent-text">five production databases</span>
+    </h1>
+    <p class="max-w-2xl text-lg text-[var(--color-fg-muted)]">
+      {SITE_TAGLINE} Each exhibit walks through the storage engine, concurrency model, and query evaluator
+      of a real production system — with hand-drawn SVG diagrams and a schema you can read in a single
+      sitting.
+    </p>
+    <div class="mt-8 flex gap-3">
+      <a href={withBase('/gallery/')} class="pill" style="font-size:0.85rem;padding:0.5rem 1rem"
+        >Browse the gallery →</a
+      >
+      <a
+        href={withBase('/about/')}
+        class="pill"
+        style="font-size:0.85rem;padding:0.5rem 1rem;background:transparent;color:var(--color-fg-muted);border-color:var(--color-border)"
+        >About</a
+      >
+    </div>
+  </section>
+
+  <section class="mb-16">
+    <div class="mb-6 flex items-baseline justify-between">
+      <h2 class="display-heading text-2xl">Featured exhibits</h2>
+      <span class="font-mono text-sm text-[var(--color-fg-muted)]">
+        {exhibitSlugs().length} on display
+      </span>
+    </div>
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {exhibits.map((entry, i) => <ExhibitCard entry={entry} index={i} />)}
+    </div>
+  </section>
+
+  <section class="panel p-6">
+    <h2 class="display-heading mb-3 text-xl">What you'll find on each page</h2>
+    <ul class="grid gap-2 text-sm text-[var(--color-fg-muted)] sm:grid-cols-2">
+      <li>· a one-paragraph summary in plain language</li>
+      <li>· the storage engine, concurrency model, and licensing at a glance</li>
+      <li>· annotated walk-throughs of the most interesting subsystems</li>
+      <li>· one or more hand-drawn SVG diagrams (no Mermaid, no D3)</li>
+      <li>· short code excerpts you can run against a real install</li>
+      <li>· references for further reading</li>
+    </ul>
+  </section>
+</BaseLayout>

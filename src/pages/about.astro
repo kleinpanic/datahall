@@ -1,0 +1,40 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { SITE_REPO } from '../consts';
+---
+
+<BaseLayout title="About" description="What datahall is and isn't">
+  <article class="prose-invert max-w-2xl space-y-5">
+    <p class="pill mb-4">About</p>
+    <h1 class="display-heading mb-3 text-4xl">What this is</h1>
+    <p>
+      <strong>datahall</strong> is a small static site that walks through the internals of five production
+      databases. The goal is to make storage engines, transaction models, and index structures approachable
+      for engineers who use these systems every day but rarely read their source.
+    </p>
+
+    <h2 class="display-heading mt-10 mb-3 text-2xl">What it is not</h2>
+    <ul class="list-disc space-y-1 pl-6 text-[var(--color-fg-muted)]">
+      <li>It is not a benchmark. We don't run queries, we describe how they run.</li>
+      <li>It is not a tutorial. We assume you can read SQL or vector-search code.</li>
+      <li>It is not exhaustive. We pick one or two subsystems per database and go deep.</li>
+    </ul>
+
+    <h2 class="display-heading mt-10 mb-3 text-2xl">How it's built</h2>
+    <p>
+      Astro 5 for the static site, Tailwind v4 for the dark-mode UI, plain TypeScript modules for
+      the exhibit data, and Zod for runtime validation. Diagrams are hand-authored SVG with CSS
+      keyframes for animation. The same exhibit data is intended to power a future TUI consumer.
+    </p>
+
+    <h2 class="display-heading mt-10 mb-3 text-2xl">Contributing</h2>
+    <p>
+      The source is at <a class="accent-text underline" href={SITE_REPO}>{SITE_REPO}</a>. Adding an
+      exhibit means adding one TypeScript file under
+      <code class="code-block inline-block px-2 py-0.5 text-xs">src/data/exhibits/</code>
+      and validating it against the schema with <code
+        class="code-block inline-block px-2 py-0.5 text-xs">pnpm run test:unit</code
+      >.
+    </p>
+  </article>
+</BaseLayout>

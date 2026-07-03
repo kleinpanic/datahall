@@ -1,0 +1,37 @@
+---
+import type { DatabaseEntry } from '../lib/schema';
+import { withBase } from '../consts';
+
+interface Props {
+  entry: DatabaseEntry;
+  index?: number;
+}
+const { entry, index = 0 } = Astro.props;
+const hue = entry.accent;
+---
+
+<a
+  href={withBase(`/databases/${entry.slug}/`)}
+  class="panel-card dh-fade-up block p-6"
+  style={`--accent:${hue};animation-delay:${index * 80}ms`}
+>
+  <div class="mb-4 flex items-center justify-between">
+    <span class="pill" style={`color:${hue};border-color:${hue}55;background:${hue}11`}>
+      {entry.paradigm}
+    </span>
+    <span class="font-mono text-xs text-[var(--color-fg-muted)]">
+      est. {entry.initialRelease}
+    </span>
+  </div>
+  <h3 class="display-heading mb-1 text-xl" style={`color:${hue}`}>{entry.name}</h3>
+  <p class="mb-4 text-sm text-[var(--color-fg-muted)]">{entry.tagline}</p>
+  <div class="flex flex-wrap gap-2 text-xs">
+    {
+      entry.highlights.slice(0, 3).map((h) => (
+        <span class="rounded bg-[var(--color-bg-elevated)] px-2 py-1 font-mono text-[var(--color-fg-muted)]">
+          {h.label}: {h.value}
+        </span>
+      ))
+    }
+  </div>
+</a>

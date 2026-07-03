@@ -1,0 +1,20 @@
+---
+import { SITE_TITLE, SITE_REPO } from '../consts';
+const year = new Date().getFullYear();
+---
+
+<footer class="mt-20 border-t border-[var(--color-border)]">
+  <div
+    class="mx-auto flex max-w-6xl flex-col gap-2 px-6 py-8 text-sm text-[var(--color-fg-muted)] sm:flex-row sm:justify-between"
+  >
+    <span>© {year} {SITE_TITLE}. MIT-licensed.</span>
+    <a
+      href={SITE_REPO}
+      class="transition-colors hover:text-[var(--color-accent)]"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      Source ↗
+    </a>
+  </div>
+</footer>

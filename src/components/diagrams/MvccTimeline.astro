@@ -1,0 +1,128 @@
+---
+/**
+ * MVCC snapshot timeline — used by PostgreSQL, MariaDB (InnoDB), etc.
+ * Three transactions race on the same row; each reads a snapshot at its
+ * start; writes get new versions; readers see the version visible at their
+ * snapshot.
+ */
+---
+
+<figure class="panel my-6 p-4">
+  <figcaption class="mb-3 font-mono text-xs tracking-widest text-[var(--color-fg-muted)] uppercase">
+    MVCC · Snapshot isolation timeline
+  </figcaption>
+  <svg
+    viewBox="0 0 720 260"
+    role="img"
+    aria-label="Three transactions over time, with row versions stacked vertically"
+    class="h-auto w-full"
+  >
+    <defs>
+      <marker
+        id="dh-arrow"
+        viewBox="0 0 10 10"
+        refX="8"
+        refY="5"
+        markerWidth="6"
+        markerHeight="6"
+        orient="auto"
+      >
+        <path d="M0,0 L10,5 L0,10 z" fill="#8b95a7"></path>
+      </marker>
+    </defs>
+
+    <!-- time axis -->
+    <line x1="100" y1="220" x2="700" y2="220" stroke="#1f2733"></line>
+    <text x="100" y="240" fill="#8b95a7" font-size="10" font-family="ui-monospace">t=0</text>
+    <text x="400" y="240" fill="#8b95a7" font-size="10" font-family="ui-monospace">t=1</text>
+    <text x="700" y="240" fill="#8b95a7" font-size="10" font-family="ui-monospace">t=2</text>
+
+    <!-- row versions stack -->
+    <g>
+      <rect x="20" y="40" width="60" height="40" rx="4" fill="#7c5cff22" stroke="#7c5cff55"></rect>
+      <text
+        x="50"
+        y="64"
+        text-anchor="middle"
+        fill="#7c5cff"
+        font-size="11"
+        font-family="ui-monospace">v1</text
+      >
+
+      <rect x="20" y="92" width="60" height="40" rx="4" fill="#00ffe122" stroke="#00ffe155"></rect>
+      <text
+        x="50"
+        y="116"
+        text-anchor="middle"
+        fill="#00ffe1"
+        font-size="11"
+        font-family="ui-monospace">v2</text
+      >
+
+      <rect x="20" y="144" width="60" height="40" rx="4" fill="#ff5d8f22" stroke="#ff5d8f55"></rect>
+      <text
+        x="50"
+        y="168"
+        text-anchor="middle"
+        fill="#ff5d8f"
+        font-size="11"
+        font-family="ui-monospace">v3</text
+      >
+    </g>
+
+    <!-- transactions -->
+    <g>
+      <!-- Tx A reads at t=0, writes v2 -->
+      <line x1="120" y1="60" x2="220" y2="60" stroke="#7c5cff" stroke-width="1.5" class="dh-pulse"
+      ></line>
+      <text
+        x="170"
+        y="50"
+        text-anchor="middle"
+        fill="#7c5cff"
+        font-size="11"
+        font-family="ui-monospace">Tx A</text
+      >
+      <line
+        x1="220"
+        y1="60"
+        x2="220"
+        y2="112"
+        stroke="#7c5cff"
+        stroke-width="1.5"
+        marker-end="url(#dh-arrow)"></line>
+
+      <!-- Tx B reads at t=0.5, sees v1, writes v3 -->
+      <line x1="280" y1="60" x2="420" y2="60" stroke="#ff5d8f" stroke-width="1.5" class="dh-pulse"
+      ></line>
+      <text
+        x="350"
+        y="50"
+        text-anchor="middle"
+        fill="#ff5d8f"
+        font-size="11"
+        font-family="ui-monospace">Tx B</text
+      >
+      <line
+        x1="420"
+        y1="60"
+        x2="420"
+        y2="164"
+        stroke="#ff5d8f"
+        stroke-width="1.5"
+        marker-end="url(#dh-arrow)"></line>
+
+      <!-- Tx C starts at t=1.5, sees v3 -->
+      <line x1="500" y1="164" x2="680" y2="164" stroke="#00ffe1" stroke-width="1.5" class="dh-pulse"
+      ></line>
+      <text
+        x="590"
+        y="156"
+        text-anchor="middle"
+        fill="#00ffe1"
+        font-size="11"
+        font-family="ui-monospace">Tx C (sees v3)</text
+      >
+    </g>
+  </svg>
+</figure>

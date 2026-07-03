@@ -1,0 +1,129 @@
+---
+/**
+ * Async primary → replica topology with one cascading replica.
+ * MariaDB and PostgreSQL both fit this shape; Qdrant in distributed mode
+ * is similar. Used to illustrate WAL shipping / log-based replication.
+ */
+---
+
+<figure class="panel my-6 p-4">
+  <figcaption class="mb-3 font-mono text-xs tracking-widest text-[var(--color-fg-muted)] uppercase">
+    Replication · Async primary → replicas
+  </figcaption>
+  <svg
+    viewBox="0 0 720 240"
+    role="img"
+    aria-label="Primary streams WAL to two replicas; one replica streams further to a cascading replica"
+    class="h-auto w-full"
+  >
+    <defs>
+      <marker
+        id="dh-arrow-r"
+        viewBox="0 0 10 10"
+        refX="8"
+        refY="5"
+        markerWidth="6"
+        markerHeight="6"
+        orient="auto"
+      >
+        <path d="M0,0 L10,5 L0,10 z" fill="#00ffe1"></path>
+      </marker>
+    </defs>
+
+    <!-- nodes -->
+    <g>
+      <rect x="40" y="90" width="160" height="60" rx="10" fill="#161c25" stroke="#00ffe1"></rect>
+      <text
+        x="120"
+        y="115"
+        text-anchor="middle"
+        fill="#00ffe1"
+        font-size="13"
+        font-family="ui-monospace">Primary</text
+      >
+      <text
+        x="120"
+        y="135"
+        text-anchor="middle"
+        fill="#8b95a7"
+        font-size="10"
+        font-family="ui-monospace">writes + WAL</text
+      >
+    </g>
+
+    <g>
+      <rect x="280" y="40" width="160" height="60" rx="10" fill="#161c25" stroke="#7c5cff"></rect>
+      <text
+        x="360"
+        y="65"
+        text-anchor="middle"
+        fill="#7c5cff"
+        font-size="13"
+        font-family="ui-monospace">Replica A</text
+      >
+      <text
+        x="360"
+        y="85"
+        text-anchor="middle"
+        fill="#8b95a7"
+        font-size="10"
+        font-family="ui-monospace">reads + cascading</text
+      >
+    </g>
+
+    <g>
+      <rect x="280" y="150" width="160" height="60" rx="10" fill="#161c25" stroke="#7c5cff"></rect>
+      <text
+        x="360"
+        y="175"
+        text-anchor="middle"
+        fill="#7c5cff"
+        font-size="13"
+        font-family="ui-monospace">Replica B</text
+      >
+      <text
+        x="360"
+        y="195"
+        text-anchor="middle"
+        fill="#8b95a7"
+        font-size="10"
+        font-family="ui-monospace">reads only</text
+      >
+    </g>
+
+    <g>
+      <rect
+        x="520"
+        y="40"
+        width="160"
+        height="60"
+        rx="10"
+        fill="#161c25"
+        stroke="#7c5cff"
+        stroke-dasharray="4 3"></rect>
+      <text
+        x="600"
+        y="65"
+        text-anchor="middle"
+        fill="#7c5cff"
+        font-size="13"
+        font-family="ui-monospace">Cascading</text
+      >
+      <text
+        x="600"
+        y="85"
+        text-anchor="middle"
+        fill="#8b95a7"
+        font-size="10"
+        font-family="ui-monospace">reads only</text
+      >
+    </g>
+
+    <!-- arrows -->
+    <g stroke="#00ffe1" fill="none">
+      <path d="M200,120 C240,120 240,70 280,70" marker-end="url(#dh-arrow-r)"></path>
+      <path d="M200,120 C240,120 240,180 280,180" marker-end="url(#dh-arrow-r)"></path>
+      <path d="M440,70 C480,70 480,70 520,70" marker-end="url(#dh-arrow-r)" class="dh-dash"></path>
+    </g>
+  </svg>
+</figure>

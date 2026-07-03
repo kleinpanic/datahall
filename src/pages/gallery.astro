@@ -1,0 +1,20 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ExhibitCard from '../components/ExhibitCard.astro';
+import { exhibits } from '../lib/exhibits';
+---
+
+<BaseLayout title="Gallery" description="Every database exhibit in the datahall">
+  <header class="mb-10">
+    <p class="pill mb-4">Gallery</p>
+    <h1 class="display-heading mb-3 text-4xl">Every exhibit on display</h1>
+    <p class="max-w-2xl text-[var(--color-fg-muted)]">
+      Each card links to a full exhibit page with diagrams, walk-throughs, and short code excerpts.
+      Sort is by initial release year.
+    </p>
+  </header>
+
+  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    {exhibits.map((entry, i) => <ExhibitCard entry={entry} index={i} />)}
+  </div>
+</BaseLayout>
