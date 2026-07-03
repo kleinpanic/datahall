@@ -19,9 +19,10 @@ export default [
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
     rules: {
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
-      // Pragmatic: avoid noisy refactors in the scaffold; tighten per file as
-      // we add more exhibits and TS surface area.
-      '@typescript-eslint/no-explicit-any': 'off',
+      // We document the one escape hatch (DIAGRAM_MAP) with a named type alias,
+      // but we still allow `any` for genuine boundary cases like JSON schema
+      // types from third-party APIs that don't expose a runtime type.
+      '@typescript-eslint/no-explicit-any': 'warn',
     },
   },
 ];

@@ -51,7 +51,10 @@ jobs:
           path: ./dist
 
       - name: E2E tests
+        env:
+          SITE_BASE: /datahall/
+          PLAYWRIGHT_BASE_URL: http://localhost:4321
         run: |
-          pnpm run preview &
-          npx wait-on http://localhost:4321 -t 60000
+          SITE_BASE=/datahall/ pnpm run preview &
+          npx wait-on http://localhost:4321/datahall/ -t 60000
           pnpm run test:e2e

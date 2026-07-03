@@ -20,7 +20,13 @@ if (!entry) {
   return new Response(`Unknown exhibit "${slug}"`, { status: 404 });
 }
 
-const DIAGRAM_MAP: Record<string, any> = {
+// Minimal type: Astro .astro default exports are zero-arg component factories.
+// We use a structural alias because `AstroComponentFactory` is not part of
+// the public API (it's exposed only under astro/dist/types/public/context).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DiagramComponent = (props: Record<string, any>) => any;
+
+const DIAGRAM_MAP: Record<string, DiagramComponent> = {
   SqliteFileFormat,
   MvccTimeline,
   Replication,
