@@ -13,7 +13,7 @@ export const exhibit: DatabaseEntry = {
   language: 'Rust',
   initialRelease: 2021,
   license: 'Apache-2.0',
-  accent: '#f5a623',
+  accent: '#ffb347',
   highlights: [
     { label: 'Index', value: 'HNSW + scalar quantization' },
     { label: 'Payload', value: 'filter on any field' },
