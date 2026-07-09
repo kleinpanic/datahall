@@ -3,6 +3,33 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import ExhibitCard from '../components/ExhibitCard.astro';
 import { exhibits, exhibitSlugs } from '../lib/exhibits';
 import { SITE_TAGLINE, withBase } from '../consts';
+import type { Visual } from '../lib/schema';
+import DatabaseFamilyMap from '../components/visuals/DatabaseFamilyMap.astro';
+import LegendPanel from '../components/visuals/LegendPanel.astro';
+
+// Museum lobby visuals: taxonomy map + color legend, both rendered on the
+// homepage so a first-time visitor can read the visual language before
+// clicking into any exhibit.
+const familyMapVisual: Visual = {
+  kind: 'family-map',
+  title: 'Database family map',
+  description:
+    'A taxonomy of database families. The current exhibit is highlighted; others are in the queue.',
+};
+const legendVisual: Visual = {
+  kind: 'legend',
+  title: 'Visual legend',
+  description: 'Colors used throughout datahall exhibits.',
+  categories: [
+    { key: 'storage', color: '#00ffe1', label: 'storage' },
+    { key: 'execution', color: '#7c5cff', label: 'execution' },
+    { key: 'index', color: '#5cffb1', label: 'index' },
+    { key: 'memory', color: '#ffb347', label: 'memory / cache' },
+    { key: 'durability', color: '#f5a623', label: 'durability / recovery' },
+    { key: 'concurrency', color: '#ff5d8f', label: 'concurrency' },
+    { key: 'network', color: '#7c5cff', label: 'network / distribution' },
+  ],
+};
 ---
 
 <BaseLayout description={SITE_TAGLINE}>
@@ -39,6 +66,23 @@ import { SITE_TAGLINE, withBase } from '../consts';
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {exhibits.map((entry, i) => <ExhibitCard entry={entry} index={i} />)}
     </div>
+  </section>
+
+  <section class="mb-16">
+    <div class="mb-6 flex items-baseline justify-between">
+      <h2 class="display-heading text-2xl">Database family map</h2>
+      <span class="font-mono text-sm text-[var(--color-fg-muted)]">museum lobby</span>
+    </div>
+    <DatabaseFamilyMap visual={familyMapVisual} />
+  </section>
+
+  <section class="mb-16">
+    <h2 class="display-heading mb-3 text-2xl">Visual legend</h2>
+    <p class="mb-4 max-w-2xl text-sm text-[var(--color-fg-muted)]">
+      Every diagram on every exhibit uses the same color taxonomy. This legend appears at the top of
+      each exhibit too, so you can decode any page at a glance.
+    </p>
+    <LegendPanel visual={legendVisual} />
   </section>
 
   <section class="panel p-6">

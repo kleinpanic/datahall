@@ -27,3 +27,4 @@ test-results/
 
 # misc
 *.tsbuildinfo
+.vitest-stubs/

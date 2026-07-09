@@ -10,6 +10,11 @@ export const exhibit: DatabaseEntry = {
   paradigm: 'client-server',
   concurrency: 'mvcc',
   storage: 'heap-btree',
+  families: ['relational'],
+  deploymentModel: 'server',
+  storageEngines: ['heap-btree', 'b-plus-tree'],
+  indexTypes: ['btree', 'hash', 'gin', 'brin', 'gist'],
+  workloads: ['oltp', 'analytics'],
   language: 'C',
   initialRelease: 1996,
   license: 'PostgreSQL License',
@@ -67,14 +72,48 @@ export const exhibit: DatabaseEntry = {
       ],
     },
   ],
-  diagrams: [
+  visuals: [
     {
+      kind: 'wal-timeline',
+      mode: 'postgres',
+      showCrashMoment: true,
+      title: 'WAL + checkpoint timeline',
+      description:
+        'A walwriter appends to the WAL; a checkpointer flushes dirty buffers and recycles WAL segments. Crash recovery replays from the last checkpoint.',
+    },
+    {
+      kind: 'page-microscope',
+      mode: 'postgres',
+      complexity: 'full',
+      title: 'Heap page anatomy',
+      description:
+        'Each 8 KiB heap page carries a page header (lsn, tli, free space), an item-pointer array, and tuple headers with xmin/xmax for MVCC.',
+    },
+    {
+      kind: 'pipeline',
+      mode: 'read',
+      database: 'postgresql',
+      title: 'Read path: SQL -> parser -> planner -> executor -> heap page',
+      description:
+        'A prepared statement goes through parse, analyze, rewrite, plan, execute. The executor walks heap pages and index pages and applies MVCC visibility per snapshot.',
+    },
+    {
+      kind: 'pipeline',
+      mode: 'write',
+      database: 'postgresql',
+      title: 'Write path: SQL -> WAL append -> heap update -> background VACUUM',
+      description:
+        'Writes append to the WAL, then update heap tuples in place; dead tuples are reclaimed by autovacuum.',
+    },
+    {
+      kind: 'diagram',
       component: 'MvccTimeline',
       title: 'Snapshot isolation timeline',
       description:
         'Three concurrent transactions with overlapping read/write sets; each sees the row version visible at its snapshot.',
     },
     {
+      kind: 'diagram',
       component: 'Replication',
       title: 'Streaming replication topology',
       description: 'Primary streams WAL; one replica streams further to a cascading replica.',

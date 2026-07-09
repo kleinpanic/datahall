@@ -25,7 +25,7 @@ describe('DatabaseEntry schema', () => {
       highlights: [{ label: 'a', value: 'b' }],
       features: [{ title: 'a', detail: 'b' }],
       sections: [{ heading: 'h', paragraphs: ['p'] }],
-      diagrams: [{ component: 'X', title: 't', description: 'd' }],
+      visuals: [{ kind: 'legend', categories: [{ key: 'storage', color: '#000000', label: 'l' }] }],
     });
     expect(bad.success).toBe(false);
   });
@@ -63,7 +63,13 @@ describe('exhibit corpus', () => {
       expect(e.highlights.length).toBeGreaterThanOrEqual(2);
       expect(e.features.length).toBeGreaterThanOrEqual(2);
       expect(e.sections.length).toBeGreaterThanOrEqual(2);
-      expect(e.diagrams.length).toBeGreaterThanOrEqual(1);
+      expect(e.visuals.length).toBeGreaterThanOrEqual(1);
+      // legacy `kind: 'diagram'` visuals with `component: 'X'` must still validate (legacy factory contract)
+      for (const v of e.visuals) {
+        if (v.kind === 'diagram') {
+          expect(typeof v.component).toBe('string');
+        }
+      }
     }
   });
 

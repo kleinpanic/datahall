@@ -1,0 +1,137 @@
+---
+/**
+ * DatabaseFamilyMap -- museum-lobby taxonomy map.
+ *
+ * Shows the major database families (Relational, Key/Value, Document,
+ * Wide-column, Graph, Time-series, Search, Vector, OLAP/columnar,
+ * LSM/log-structured). Each family lists current exhibits (if any) and
+ * marks a "coming soon" lane for families not yet on display.
+ */
+import type { VisualFamilyMap, DatabaseFamily } from '../../lib/schema';
+import { exhibits } from '../../lib/exhibits';
+import { withBase } from '../../consts';
+
+interface Props {
+  visual: VisualFamilyMap;
+}
+
+const { visual } = Astro.props;
+
+interface Family {
+  id: DatabaseFamily;
+  label: string;
+  color: string;
+  blurb: string;
+}
+
+const FAMILIES: Family[] = [
+  { id: 'relational', label: 'Relational', color: '#00ffe1', blurb: 'SQL tables, joins, transactions' },
+  { id: 'vector', label: 'Vector', color: '#5cffb1', blurb: 'embeddings, k-NN, payload' },
+  { id: 'key-value', label: 'Key/Value', color: '#7c5cff', blurb: 'O(1) point reads/writes' },
+  { id: 'document', label: 'Document', color: '#7c5cff', blurb: 'JSON-shaped records' },
+  { id: 'wide-column', label: 'Wide-column', color: '#ff5d8f', blurb: 'sparse row x column model' },
+  { id: 'graph', label: 'Graph', color: '#ff5d8f', blurb: 'nodes, edges, traversals' },
+  { id: 'time-series', label: 'Time-series', color: '#ffb347', blurb: 'append-only with time index' },
+  { id: 'search', label: 'Search', color: '#ffb347', blurb: 'inverted indexes, ranking' },
+  { id: 'olap-columnar', label: 'OLAP / Columnar', color: '#f5a623', blurb: 'column-pruned scans' },
+  { id: 'lsm-log-structured', label: 'LSM / Log-structured', color: '#f5a623', blurb: 'append + compact' },
+];
+
+type Exhibit = typeof exhibits[number];
+const exhibitByFamily = new Map<DatabaseFamily, Exhibit[]>();
+for (const e of exhibits) {
+  const raw = (e as unknown as { families?: DatabaseFamily[] }).families;
+  const fams: DatabaseFamily[] = Array.isArray(raw) && raw.length > 0 ? raw : fallbackFamiliesForParadigm(e.paradigm);
+  for (const fam of fams) {
+    if (!exhibitByFamily.has(fam)) exhibitByFamily.set(fam, []);
+    exhibitByFamily.get(fam)!.push(e);
+  }
+}
+
+function fallbackFamiliesForParadigm(p: string): DatabaseFamily[] {
+  if (p === 'embedded-sql' || p === 'client-server' || p === 'server') return ['relational'];
+  if (p === 'embedded-vector' || p === 'server-vector') return ['vector'];
+  return [];
+}
+
+const highlight = visual.families && visual.families.length > 0
+  ? new Set<DatabaseFamily>(visual.families)
+  : null;
+
+const cols = 5;
+---
+
+
+<div class="family-map" data-family-map>
+  <div
+    class="family-grid"
+    style={`grid-template-columns:repeat(${cols}, minmax(0, 1fr))`}
+  >
+    {FAMILIES.map((fam) => {
+      const exs: Exhibit[] = exhibitByFamily.get(fam.id) ?? [];
+      const dimmed = highlight && !highlight.has(fam.id);
+      return (
+        <div
+          class={`family-cell panel p-3 ${dimmed ? 'opacity-40' : ''}`}
+          style={`border-color:${fam.color}55`}
+          data-node-title={`${fam.label} — ${fam.blurb}${exs.length ? ' · ' + exs.map((e) => e.name).join(', ') : ' · no exhibits yet'}`}
+          tabindex="0"
+          role="button"
+          aria-label={`${fam.label} family${exs.length ? ': ' + exs.map((e) => e.name).join(', ') : ''}`}
+        >
+          <div class="mb-1 flex items-baseline justify-between">
+            <span
+              class="font-mono text-[0.7rem] uppercase tracking-widest"
+              style={`color:${fam.color}`}
+            >
+              {fam.label}
+            </span>
+            <span class="font-mono text-[0.65rem] text-[var(--color-fg-muted)]">
+              {exs.length ? exs.length + ' on display' : 'future'}
+            </span>
+          </div>
+          <p class="mb-2 text-xs text-[var(--color-fg-muted)]">{fam.blurb}</p>
+          <div class="flex flex-wrap gap-1">
+            {exs.length > 0 ? (
+              exs.map((e) => (
+                <a
+                  href={withBase(`/databases/${e.slug}/`)}
+                  class="rounded border border-[var(--color-border)] bg-[var(--color-bg-card)] px-1.5 py-0.5 font-mono text-[0.65rem] hover:border-[var(--color-accent)]"
+                  style={`color:${fam.color}`}
+                >
+                  {e.name}
+                </a>
+              ))
+            ) : (
+              <span class="rounded border border-dashed border-[var(--color-border)] px-1.5 py-0.5 font-mono text-[0.65rem] text-[var(--color-fg-muted)]">
+                coming soon
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    })}
+  </div>
+</div>
+
+<style>
+  .family-cell {
+    transition:
+      opacity 0.2s ease,
+      border-color 0.2s ease,
+      transform 0.2s ease;
+  }
+  .family-cell:hover {
+    transform: translateY(-2px);
+  }
+  .family-cell:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  @media (max-width: 720px) {
+    [data-family-map] .family-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+  }
+</style>
+

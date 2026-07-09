@@ -1,0 +1,176 @@
+---
+/**
+ * WalTimeline -- generic durability timeline.
+ *
+ * Modes:
+ *   - sqlite: WAL frame + checkpoint + rollback-journal fallback
+ *   - postgres: xlog insert + LSN + checkpoint + recovery
+ *   - innodb: redo log (LSN) + undo + doublewrite + crash recovery
+ *   - qdrant: WAL segment + segment flush + reload
+ *   - generic: abstract WAL append + flush + replay
+ *
+ * `showCrashMoment` toggles a crash-moment step that visualizes the
+ * recovery behavior.
+ */
+import type { VisualWalTimeline } from '../../lib/schema';
+
+interface Props {
+  visual: VisualWalTimeline;
+}
+
+const { visual } = Astro.props;
+
+interface Step {
+  label: string;
+  detail: string;
+  color: string;
+}
+
+const MODE_STEPS: Record<VisualWalTimeline['mode'], Step[]> = {
+  sqlite: [
+    { label: 'append frame', detail: 'write to .wal sidecar', color: '#f5a623' },
+    { label: 'commit', detail: 'fsync the WAL', color: '#f5a623' },
+    { label: 'checkpoint', detail: 'merge into main db file', color: '#00ffe1' },
+    { label: 'truncate', detail: 'reset WAL header', color: '#00ffe1' },
+  ],
+  postgres: [
+    { label: 'xlog insert', detail: 'append record at LSN', color: '#f5a623' },
+    { label: 'commit', detail: 'fsync WAL (synchronous_commit)', color: '#f5a623' },
+    { label: 'background writer', detail: 'flush dirty buffers', color: '#ffb347' },
+    { label: 'checkpointer', detail: 'advance redo ptr', color: '#00ffe1' },
+  ],
+  innodb: [
+    { label: 'redo log', detail: 'append mtr at LSN', color: '#f5a623' },
+    { label: 'undo log', detail: 'append roll-pointer record', color: '#ff5d8f' },
+    { label: 'doublewrite', detail: 'page write to safety copy', color: '#f5a623' },
+    { label: 'commit', detail: 'fsync redo log', color: '#f5a623' },
+  ],
+  qdrant: [
+    { label: 'WAL segment', detail: 'append op to mmap segment', color: '#f5a623' },
+    { label: 'memtable', detail: 'in-memory index update', color: '#7c5cff' },
+    { label: 'flush', detail: 'segment becomes immutable', color: '#00ffe1' },
+    { label: 'compaction', detail: 'background segment merge', color: '#5cffb1' },
+  ],
+  generic: [
+    { label: 'append', detail: 'write-ahead log record', color: '#f5a623' },
+    { label: 'fsync', detail: 'durability boundary', color: '#f5a623' },
+    { label: 'flush', detail: 'apply to data store', color: '#00ffe1' },
+  ],
+};
+
+const steps = MODE_STEPS[visual.mode];
+const showCrash = visual.showCrashMoment;
+const viewW = 720;
+const viewH = showCrash ? 280 : 220;
+const padding = 40;
+const usable = viewW - padding * 2;
+const stepW = steps.length > 0 ? usable / steps.length : usable;
+const stepH = 60;
+const rowY = 80;
+---
+
+<svg
+  viewBox={`0 0 ${viewW} ${viewH}`}
+  role="img"
+  aria-label={`Durability timeline for ${visual.mode}: ${steps.map(s => s.label).join(' then ')}${showCrash ? ', including a crash moment' : ''}`}
+  class="h-auto w-full"
+  data-wal-mode={visual.mode}
+  data-wal-show-crash={showCrash ? 'true' : 'false'}
+>
+  <defs>
+    <marker id="dh-wal-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#f5a623" />
+    </marker>
+  </defs>
+
+  {/* time axis */}
+  <line x1={padding} y1={rowY + stepH + 24} x2={viewW - padding} y2={rowY + stepH + 24} stroke="#1f2733" stroke-width="1" />
+  <text x={padding} y={rowY + stepH + 40} fill="#8b95a7" font-size="10" font-family="ui-monospace, monospace">time</text>
+
+  {/* steps */}
+  {steps.map((step, idx) => {
+    const x = padding + idx * stepW;
+    return (
+      <g data-node-title={`${step.label} — ${step.detail}`} tabindex="0" role="button" aria-label={`${step.label}: ${step.detail}`}>
+        <rect
+          x={x + 8}
+          y={rowY}
+          width={stepW - 16}
+          height={stepH}
+          rx={6}
+          fill={`${step.color}22`}
+          stroke={step.color}
+          stroke-width="1.5"
+        />
+        <text
+          x={x + stepW / 2}
+          y={rowY + 22}
+          text-anchor="middle"
+          fill={step.color}
+          font-size="13"
+          font-family="ui-monospace, monospace"
+        >{step.label}</text>
+        <text
+          x={x + stepW / 2}
+          y={rowY + 40}
+          text-anchor="middle"
+          fill="#8b95a7"
+          font-size="9"
+          font-family="ui-monospace, monospace"
+        >{step.detail}</text>
+        <line
+          x1={x + stepW - 8}
+          y1={rowY + stepH / 2}
+          x2={x + stepW + 8}
+          y2={rowY + stepH / 2}
+          stroke="#f5a623"
+          stroke-width="1.5"
+          stroke-dasharray="4 3"
+          marker-end="url(#dh-wal-arrow)"
+          class="dh-pulse"
+        />
+      </g>
+    );
+  })}
+
+  {/* crash moment */}
+  {showCrash && (
+    <g data-node-title="crash moment — power loss; on restart the WAL is replayed to bring the database to a consistent state">
+      <line
+        x1={viewW / 2 - 2}
+        y1={20}
+        x2={viewW / 2 - 2}
+        y2={rowY + stepH + 60}
+        stroke="#ff5d8f"
+        stroke-width="2"
+        stroke-dasharray="6 4"
+      />
+      <rect
+        x={viewW / 2 - 70}
+        y={20}
+        width={140}
+        height={26}
+        rx={13}
+        fill="#ff5d8f22"
+        stroke="#ff5d8f"
+      />
+      <text
+        x={viewW / 2}
+        y={38}
+        text-anchor="middle"
+        fill="#ff5d8f"
+        font-size="11"
+        font-family="ui-monospace, monospace"
+      >crash / power loss</text>
+      <text
+        x={viewW / 2}
+        y={rowY + stepH + 60}
+        text-anchor="middle"
+        fill="#8b95a7"
+        font-size="10"
+        font-family="ui-monospace, monospace"
+      >on restart: replay WAL → consistent state</text>
+    </g>
+  )}
+</svg>
+

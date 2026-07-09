@@ -1,0 +1,197 @@
+---
+/**
+ * VectorIndexPlayground -- upgraded vector index schematic.
+ *
+ * Modes:
+ *   - hnsw (default): layered graph with a top-down traversal path
+ *   - ivf-pq: inverted file with product-quantization clusters
+ *   - flat: brute-force over all vectors
+ *
+ * `showPayloadFilter` overlays a payload filter bitmap (relevant for Qdrant
+ * and LanceDB filtered queries). `showTopK` highlights the final top-k
+ * neighborhood with a stronger ring.
+ */
+import type { VisualVectorIndex } from '../../lib/schema';
+
+interface Props {
+  visual: VisualVectorIndex;
+}
+
+const { visual } = Astro.props;
+
+interface Point {
+  x: number;
+  y: number;
+  layer: 0 | 1 | 2;
+  id: number;
+  highlight?: boolean;
+}
+
+// 11 vectors arranged into 3 layers; some are highlighted as "top-k".
+const POINTS: Point[] = [
+  { id: 1, x: 110, y: 60, layer: 2 },
+  { id: 2, x: 540, y: 70, layer: 2, highlight: true },
+  { id: 3, x: 220, y: 150, layer: 1, highlight: true },
+  { id: 4, x: 380, y: 165, layer: 1 },
+  { id: 5, x: 520, y: 155, layer: 1, highlight: true },
+  { id: 6, x: 660, y: 160, layer: 1 },
+  { id: 7, x: 60, y: 270, layer: 0 },
+  { id: 8, x: 180, y: 290, layer: 0, highlight: true },
+  { id: 9, x: 320, y: 270, layer: 0 },
+  { id: 10, x: 460, y: 295, layer: 0, highlight: true },
+  { id: 11, x: 600, y: 275, layer: 0 },
+  { id: 12, x: 280, y: 245, layer: 0, highlight: true },
+];
+
+const edgesL2: Array<[number, number]> = [[1, 2]];
+const edgesL1: Array<[number, number]> = [
+  [3, 4], [4, 5], [5, 6],
+  [3, 1], [5, 2], [6, 2],
+];
+const edgesL0: Array<[number, number]> = [
+  [7, 8], [8, 12], [12, 9], [9, 10], [10, 11],
+  [7, 3], [8, 3], [10, 5], [12, 4],
+];
+
+const viewW = 720;
+const viewH = visual.mode === 'ivf-pq' ? 320 : 360;
+
+const isHnsw = visual.mode === 'hnsw';
+const isIvf = visual.mode === 'ivf-pq';
+---
+
+<svg
+  viewBox={`0 0 ${viewW} ${viewH}`}
+  role="img"
+  aria-label={`Vector index schematic for ${visual.mode}: ${isHnsw ? 'HNSW layered graph with top-down traversal' : isIvf ? 'IVF-PQ clusters with product quantization' : 'brute-force scan over all vectors'}${visual.showPayloadFilter ? ', with a payload filter bitmap overlay' : ''}${visual.showTopK ? ', with top-k highlighted' : ''}`}
+  class="h-auto w-full"
+  data-vector-mode={visual.mode}
+  data-vector-show-payload={visual.showPayloadFilter ? 'true' : 'false'}
+  data-vector-show-topk={visual.showTopK ? 'true' : 'false'}
+>
+  {/* layer labels */}
+  {isHnsw && (
+    <g>
+      <text x={20} y={65} fill="#8b95a7" font-size="10" font-family="ui-monospace, monospace">L2 (top)</text>
+      <text x={20} y={165} fill="#8b95a7" font-size="10" font-family="ui-monospace, monospace">L1</text>
+      <text x={20} y={290} fill="#8b95a7" font-size="10" font-family="ui-monospace, monospace">L0 (base)</text>
+    </g>
+  )}
+
+  {/* edges */}
+  {isHnsw && (
+    <g stroke="#00ffe155" stroke-width="1">
+      {edgesL2.map(([a, b]) => {
+        const pa = POINTS.find((p) => p.id === a)!;
+        const pb = POINTS.find((p) => p.id === b)!;
+        return <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} />;
+      })}
+      {edgesL1.map(([a, b]) => {
+        const pa = POINTS.find((p) => p.id === a)!;
+        const pb = POINTS.find((p) => p.id === b)!;
+        return <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} stroke="#7c5cff55" />;
+      })}
+      {edgesL0.map(([a, b]) => {
+        const pa = POINTS.find((p) => p.id === a)!;
+        const pb = POINTS.find((p) => p.id === b)!;
+        return <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} stroke="#ff5d8f55" />;
+      })}
+    </g>
+  )}
+
+  {/* IVF-PQ cluster cells */}
+  {isIvf && (
+    <g>
+      {[0, 1, 2, 3].map((i) => {
+        const x = 40 + (i % 2) * 320;
+        const y = 40 + Math.floor(i / 2) * 130;
+        return (
+          <g>
+            <rect x={x} y={y} width={300} height={120} rx={8} fill="#7c5cff11" stroke="#7c5cff" stroke-dasharray="3 3" />
+            <text x={x + 8} y={y + 18} fill="#7c5cff" font-size="11" font-family="ui-monospace, monospace">cluster {i}</text>
+            {POINTS.filter((p) => p.layer === 0 && (p.id - 7) % 4 === i).map((p) => (
+              <circle cx={x + 40 + (p.id * 7 % 240)} cy={y + 40 + (p.id * 11 % 60)} r="6" fill="#5cffb1" />
+            ))}
+          </g>
+        );
+      })}
+    </g>
+  )}
+
+  {/* flat-mode brute-force */}
+  {!isHnsw && !isIvf && (
+    <g>
+      {POINTS.map((p) => (
+        <circle cx={p.x} cy={p.y} r="5" fill="#5cffb1" />
+      ))}
+      <text x={40} y={viewH - 20} fill="#8b95a7" font-size="10" font-family="ui-monospace, monospace">
+        flat: scan every vector; no index structure
+      </text>
+    </g>
+  )}
+
+  {/* payload filter overlay */}
+  {visual.showPayloadFilter && (
+    <g>
+      {POINTS.filter((p) => p.id % 2 === 0).map((p) => (
+        <circle
+          cx={p.x}
+          cy={p.y}
+          r={14}
+          fill="none"
+          stroke="#ffb347"
+          stroke-width="2"
+          stroke-dasharray="3 3"
+        />
+      ))}
+      <text x={viewW - 20} y={40} text-anchor="end" fill="#ffb347" font-size="11" font-family="ui-monospace, monospace">
+        payload filter: candidate bitmap
+      </text>
+    </g>
+  )}
+
+  {/* points */}
+  {POINTS.map((p) => {
+    const color = p.layer === 2 ? '#00ffe1' : p.layer === 1 ? '#7c5cff' : '#ff5d8f';
+    const isTopK = visual.showTopK && p.highlight;
+    return (
+      <g data-node-title={`vector ${p.id} (layer ${p.layer})${isTopK ? ' — top-k' : ''}`} tabindex="0" role="button" aria-label={`vector ${p.id}`}>
+        {isTopK && (
+          <circle cx={p.x} cy={p.y} r={12} fill="none" stroke="#f5a623" stroke-width="2" />
+        )}
+        <circle cx={p.x} cy={p.y} r={p.layer === 2 ? 8 : 7} fill={color} />
+      </g>
+    );
+  })}
+
+  {/* query traversal path (HNSW only) */}
+  {isHnsw && (
+    <g>
+      <path
+        d="M650,30 L110,60 L220,150 L180,290"
+        fill="none"
+        stroke="#f5a623"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-dasharray="8 4"
+        class="dh-dash"
+      />
+      <text x={650} y={22} fill="#f5a623" font-size="11" font-family="ui-monospace, monospace">query q</text>
+    </g>
+  )}
+
+  {/* IVF-PQ query */}
+  {isIvf && (
+    <g>
+      <text x={viewW - 20} y={viewH - 10} text-anchor="end" fill="#f5a623" font-size="11" font-family="ui-monospace, monospace">
+        query q → nearest centroid → rerank candidates
+      </text>
+    </g>
+  )}
+
+  {/* legend strip */}
+  <g>
+    <rect x={20} y={viewH - 16} width={viewW - 40} height={2} fill="#1f2733" />
+  </g>
+</svg>
+

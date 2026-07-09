@@ -10,6 +10,11 @@ export const exhibit: DatabaseEntry = {
   paradigm: 'embedded-vector',
   concurrency: 'snapshot-isolation',
   storage: 'vector-columnar',
+  families: ['vector'],
+  deploymentModel: 'embedded',
+  storageEngines: ['columnar', 'lsm-tree'],
+  indexTypes: ['ivf-pq', 'hnsw', 'bitmap'],
+  workloads: ['rag', 'semantic-search'],
   language: 'Rust',
   initialRelease: 2023,
   license: 'Apache-2.0',
@@ -65,8 +70,34 @@ export const exhibit: DatabaseEntry = {
       ],
     },
   ],
-  diagrams: [
+  visuals: [
     {
+      kind: 'vector-index',
+      mode: 'ivf-pq',
+      showPayloadFilter: true,
+      showTopK: true,
+      title: 'IVF-PQ index: inverted file + product quantization',
+      description:
+        'Vectors are partitioned into Voronoi cells (IVF), and each vector is compressed via product quantization (PQ) into a few bytes. Queries probe nearby cells and approximate distances via lookup tables.',
+    },
+    {
+      kind: 'pipeline',
+      mode: 'ann-search',
+      database: 'lancedb',
+      title: 'ANN search pipeline',
+      description:
+        'A query vector is quantized, routed to the nearest IVF cell, and compared against PQ codes in nearby cells; the top-k candidates are re-ranked by exact distance.',
+    },
+    {
+      kind: 'pipeline',
+      mode: 'write',
+      database: 'lancedb',
+      title: 'Write path: append a row -> rewrite columnar file',
+      description:
+        'Lance file format uses append-only versioning; a write creates a new chunk, and reads pick the latest version per row.',
+    },
+    {
+      kind: 'diagram',
       component: 'VectorIndex',
       title: 'HNSW layered graph',
       description:
