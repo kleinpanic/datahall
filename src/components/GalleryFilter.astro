@@ -1,0 +1,307 @@
+---
+import type { DatabaseEntry, DatabaseFamily } from '../lib/schema';
+import ExhibitCard from './ExhibitCard.astro';
+
+interface Props {
+  exhibits: ReadonlyArray<DatabaseEntry>;
+}
+
+const { exhibits } = Astro.props;
+
+const paradigms = [
+  'embedded-sql',
+  'client-server',
+  'server',
+  'embedded-vector',
+  'server-vector',
+] as const;
+const families: DatabaseFamily[] = [
+  'relational',
+  'key-value',
+  'document',
+  'wide-column',
+  'graph',
+  'time-series',
+  'search',
+  'vector',
+  'olap-columnar',
+  'lsm-log-structured',
+];
+
+// Server-rendered initial state (all)
+const initialFiltered = exhibits;
+---
+
+<div id="gallery-filter" class="mb-8">
+  <div
+    class="mb-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-6"
+  >
+    <div class="mb-4 flex flex-wrap items-center gap-3">
+      <!-- Search -->
+      <div class="min-w-[240px] flex-1">
+        <label class="sr-only" for="gallery-search">Search exhibits</label>
+        <div class="relative">
+          <input
+            id="gallery-search"
+            type="text"
+            placeholder="Search name, tagline, or highlights..."
+            class="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-2.5 text-sm placeholder:text-[var(--color-fg-muted)] focus:ring-2 focus:ring-[var(--color-accent)] focus:outline-none"
+          />
+          <span
+            class="absolute top-1/2 right-3 -translate-y-1/2 text-xs text-[var(--color-fg-muted)]"
+            >⌘K</span
+          >
+        </div>
+      </div>
+
+      <button
+        id="clear-filters"
+        class="rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-fg-muted)] hover:bg-[var(--color-bg)] active:bg-[var(--color-bg-elevated)]"
+      >
+        Clear
+      </button>
+    </div>
+
+    <!-- Paradigm chips -->
+    <div class="mb-4">
+      <div
+        class="mb-1.5 font-mono text-[10px] tracking-widest text-[var(--color-fg-muted)] uppercase"
+      >
+        Paradigm
+      </div>
+      <div class="flex flex-wrap gap-2" id="paradigm-chips">
+        {
+          paradigms.map((p) => (
+            <button
+              data-paradigm={p}
+              class="chip paradigm-chip rounded-full border px-3 py-1 text-xs font-medium transition-all hover:scale-[1.02]"
+              style="border-color: #666; color: #ccc;"
+            >
+              {p}
+            </button>
+          ))
+        }
+      </div>
+    </div>
+
+    <!-- Family chips -->
+    <div>
+      <div
+        class="mb-1.5 font-mono text-[10px] tracking-widest text-[var(--color-fg-muted)] uppercase"
+      >
+        Families (AND match)
+      </div>
+      <div class="flex flex-wrap gap-2" id="family-chips">
+        {
+          families.map((f) => (
+            <button
+              data-family={f}
+              class="chip family-chip rounded-full border px-3 py-1 text-xs font-medium transition-all hover:scale-[1.02]"
+              style="border-color: #555; color: #aaa;"
+            >
+              {f}
+            </button>
+          ))
+        }
+      </div>
+    </div>
+
+    <div id="results-count" class="mt-4 font-mono text-xs text-[var(--color-fg-muted)]">
+      Showing {initialFiltered.length} of {exhibits.length} exhibits
+    </div>
+  </div>
+
+  <!-- Filtered grid -->
+  <div id="gallery-grid" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    {
+      initialFiltered.map((entry, i) => (
+        <div
+          class="gallery-card"
+          data-slug={entry.slug}
+          data-paradigm={entry.paradigm}
+          data-families={(entry.families || []).join(',')}
+          data-search={[
+            entry.name,
+            entry.tagline,
+            entry.summary,
+            ...entry.highlights.map((h) => h.label + ' ' + h.value),
+          ]
+            .join(' ')
+            .toLowerCase()}
+        >
+          <ExhibitCard entry={entry} index={i} />
+        </div>
+      ))
+    }
+  </div>
+</div>
+
+<script>
+  // Client-side reactive filter island
+  interface FilterState {
+    query: string;
+    paradigm: string | null;
+    families: string[];
+  }
+
+  function initGalleryFilter(): void {
+    const root = document.getElementById('gallery-filter');
+    if (!root) return;
+
+    const searchInput = root.querySelector<HTMLInputElement>('#gallery-search');
+    const clearBtn = root.querySelector<HTMLButtonElement>('#clear-filters');
+    const paradigmContainer = root.querySelector<HTMLElement>('#paradigm-chips');
+    const familyContainer = root.querySelector<HTMLElement>('#family-chips');
+    const countEl = root.querySelector<HTMLElement>('#results-count');
+    const grid = root.querySelector<HTMLElement>('#gallery-grid');
+
+    if (!searchInput || !clearBtn || !paradigmContainer || !familyContainer || !countEl || !grid) {
+      return;
+    }
+
+    let state: FilterState = { query: '', paradigm: null, families: [] };
+
+    const updateURL = (): void => {
+      const params = new URLSearchParams();
+      if (state.query) params.set('q', state.query);
+      if (state.paradigm) params.set('p', state.paradigm);
+      if (state.families.length) params.set('f', state.families.join(','));
+      const qs = params.toString();
+      const newUrl = window.location.pathname + (qs ? `?${qs}` : '');
+      history.replaceState(null, '', newUrl);
+    };
+
+    const applyFilter = (): void => {
+      const cards = grid.querySelectorAll<HTMLElement>('.gallery-card');
+      let visible = 0;
+
+      cards.forEach((card) => {
+        const paradigm = card.dataset.paradigm ?? '';
+        const families = (card.dataset.families ?? '').split(',').filter(Boolean);
+        const searchHay = card.dataset.search ?? '';
+
+        let matches = true;
+
+        if (state.paradigm && paradigm !== state.paradigm) matches = false;
+
+        if (state.families.length > 0) {
+          const hasAll = state.families.every((f) => families.includes(f));
+          if (!hasAll) matches = false;
+        }
+
+        if (state.query) {
+          const q = state.query.toLowerCase();
+          if (!searchHay.includes(q)) matches = false;
+        }
+
+        card.style.display = matches ? '' : 'none';
+        if (matches) visible++;
+      });
+
+      countEl.textContent = `Showing ${visible} of ${cards.length} exhibits`;
+      updateURL();
+    };
+
+    // Wire search
+    searchInput.addEventListener('input', (e: Event) => {
+      const target = e.target as HTMLInputElement;
+      state.query = target.value;
+      applyFilter();
+    });
+
+    // Paradigm chips (single select, toggle off)
+    paradigmContainer.querySelectorAll<HTMLButtonElement>('.paradigm-chip').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const p = btn.dataset.paradigm ?? null;
+        if (!p) return;
+        if (state.paradigm === p) {
+          state.paradigm = null;
+          btn.classList.remove('active');
+        } else {
+          // clear others
+          paradigmContainer
+            .querySelectorAll('.paradigm-chip')
+            .forEach((b) => b.classList.remove('active'));
+          state.paradigm = p;
+          btn.classList.add('active');
+        }
+        applyFilter();
+      });
+    });
+
+    // Family chips (multi-select, AND)
+    familyContainer.querySelectorAll<HTMLButtonElement>('.family-chip').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const f = btn.dataset.family;
+        if (!f) return;
+        if (state.families.includes(f)) {
+          state.families = state.families.filter((x) => x !== f);
+          btn.classList.remove('active');
+        } else {
+          state.families = [...state.families, f];
+          btn.classList.add('active');
+        }
+        applyFilter();
+      });
+    });
+
+    clearBtn.addEventListener('click', () => {
+      state = { query: '', paradigm: null, families: [] };
+      searchInput.value = '';
+      paradigmContainer
+        .querySelectorAll('.paradigm-chip')
+        .forEach((b) => b.classList.remove('active'));
+      familyContainer.querySelectorAll('.family-chip').forEach((b) => b.classList.remove('active'));
+      applyFilter();
+    });
+
+    // Keyboard shortcut: Cmd/Ctrl+K focuses search
+    document.addEventListener('keydown', (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        searchInput.focus();
+        searchInput.select();
+      }
+    });
+
+    // Restore state from URL
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('q')) {
+      state.query = params.get('q') ?? '';
+      searchInput.value = state.query;
+    }
+    if (params.has('p')) {
+      const p = params.get('p');
+      if (p) {
+        state.paradigm = p;
+        const btn = paradigmContainer.querySelector(`[data-paradigm="${p}"]`);
+        btn?.classList.add('active');
+      }
+    }
+    if (params.has('f')) {
+      state.families = (params.get('f') ?? '').split(',').filter(Boolean);
+      state.families.forEach((fam) => {
+        const btn = familyContainer.querySelector(`[data-family="${fam}"]`);
+        btn?.classList.add('active');
+      });
+    }
+
+    applyFilter();
+  }
+
+  initGalleryFilter();
+</script>
+
+<style>
+  .chip.active {
+    background: var(--color-accent, #7c5cff);
+    color: #111;
+    border-color: var(--color-accent, #7c5cff);
+    box-shadow: 0 0 0 1px rgba(124, 92, 255, 0.3);
+  }
+  .paradigm-chip,
+  .family-chip {
+    cursor: pointer;
+    user-select: none;
+  }
+</style>
