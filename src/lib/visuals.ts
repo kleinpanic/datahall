@@ -14,6 +14,7 @@
 
 import AnatomyPipeline from '../components/visuals/AnatomyPipeline.astro';
 import DatabaseFamilyMap from '../components/visuals/DatabaseFamilyMap.astro';
+import GpuScene from '../components/visuals/GpuScene.astro';
 import LegendPanel from '../components/visuals/LegendPanel.astro';
 import PageMicroscope from '../components/visuals/PageMicroscope.astro';
 import VectorIndexPlayground from '../components/visuals/VectorIndexPlayground.astro';
@@ -57,6 +58,7 @@ export const VISUAL_REGISTRY: Readonly<Record<RegisteredVisualKind, AstroCompone
     'vector-index': VectorIndexPlayground as unknown as AstroComponent,
     'family-map': DatabaseFamilyMap as unknown as AstroComponent,
     legend: LegendPanel as unknown as AstroComponent,
+    'gpu-scene': GpuScene as unknown as AstroComponent,
   });
 
 /** Get the renderer for a kind. `null` if unregistered or special-cased. */

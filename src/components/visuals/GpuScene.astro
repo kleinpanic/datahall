@@ -1,0 +1,289 @@
+---
+/**
+ * GpuScene -- GPU-accelerated animated visual powered by the `vgpu` WebGPU library.
+ *
+ * https://vgpu.sh
+ *
+ * Strategy:
+ * - A static SVG storyboard is rendered on the server using the same deterministic
+ *   hash layout the WGSL shader uses. Every visitor sees the same point field.
+ * - On the client, when WebGPU + no reduced-motion: the canvas fades in and the
+ *   `hnsw-layers` scene runs (sparse amber L2 → violet L1 → dense teal L0).
+ * - Without WebGPU or with reduced motion: the static storyboard remains.
+ * - Matches the seven-kind visual system and the Qdrant exhibit palette.
+ */
+import type { VisualGpuScene } from '../../lib/schema';
+
+interface Props {
+  visual: VisualGpuScene;
+}
+
+const { visual } = Astro.props;
+
+/** Mirror of the WGSL hash so the static storyboard matches the live scene. */
+function hash(n: number, seed: number): number {
+  const s = Math.sin(n * 12.9898 + seed) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+interface FallbackPoint {
+  x: number;
+  y: number;
+  layer: number;
+}
+
+function fallbackPoints(count: number, seed: number): FallbackPoint[] {
+  const pts: FallbackPoint[] = [];
+  for (let i = 0; i < count; i++) {
+    const x = hash(i * 2, seed) * 1.8 - 0.9;
+    const y = hash(i * 2 + 1, seed) * 1.0 - 0.5;
+    const r = hash(i * 3 + 7.31, seed);
+    const layer = r > 0.965 ? 2 : r > 0.86 ? 1 : 0;
+    pts.push({ x, y, layer });
+  }
+  return pts;
+}
+
+const W = 640;
+const H = 360;
+const allPoints = fallbackPoints(visual.points, visual.seed);
+// Keep the static preview readable even for very dense fields
+const maxStatic = 420;
+const staticPoints =
+  allPoints.length > maxStatic
+    ? allPoints.filter((_, i) => i % Math.ceil(allPoints.length / maxStatic) === 0)
+    : allPoints;
+
+const layerStyle: Record<number, { fill: string; r: number; opacity: number }> = {
+  0: { fill: '#2dd4bf', r: 2.2, opacity: 0.36 },
+  1: { fill: '#7c5cff', r: 3.6, opacity: 0.72 },
+  2: { fill: '#ffb347', r: 5.4, opacity: 0.96 },
+};
+
+const query = { x: 0.34, y: -0.12 };
+
+const toPx = (v: number, span: number) => ((v + 1) / 2) * span;
+---
+
+<div
+  class="dh-gpu-scene relative overflow-hidden rounded-lg border border-[var(--color-border)] bg-[#0a0e13]"
+  style="aspect-ratio: 16 / 9"
+  data-gpu-scene
+  data-scene={visual.scene}
+  data-points={visual.points}
+  data-seed={visual.seed}
+  data-fps={visual.fps}
+>
+  <canvas
+    class="absolute inset-0 h-full w-full opacity-0 transition-opacity duration-700"
+    aria-hidden="true"></canvas>
+
+  <div class="gpu-fallback absolute inset-0">
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={visual.title} class="h-full w-full">
+      {
+        staticPoints.map((p) => {
+          const s = layerStyle[p.layer];
+          return (
+            <circle cx={toPx(p.x, W)} cy={toPx(p.y, H)} r={s.r} fill={s.fill} opacity={s.opacity} />
+          );
+        })
+      }
+      <!-- query marker -->
+      <circle
+        cx={toPx(query.x, W)}
+        cy={toPx(query.y, H)}
+        r="16"
+        fill="none"
+        stroke="#ffb347"
+        stroke-width="1.6"
+        opacity="0.9"></circle>
+      <circle cx={toPx(query.x, W)} cy={toPx(query.y, H)} r="3.2" fill="#ffb347"></circle>
+    </svg>
+
+    <div
+      class="absolute bottom-2 left-2 flex flex-wrap gap-2 font-mono text-[0.6rem] text-[var(--color-fg-muted)]"
+    >
+      <span class="rounded bg-black/60 px-1.5 py-0.5">layer 2 · sparse · entry</span>
+      <span class="rounded bg-black/60 px-1.5 py-0.5">layer 1 · mid</span>
+      <span class="rounded bg-black/60 px-1.5 py-0.5">layer 0 · dense</span>
+    </div>
+    <p
+      class="absolute top-2 right-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[0.6rem] text-[var(--color-fg-muted)]"
+    >
+      static storyboard — WebGPU animates when available
+    </p>
+  </div>
+</div>
+
+<script>
+  /**
+   * Client boot for GpuScene.
+   * Astro hoists this module. It runs once and attaches to any [data-gpu-scene] on the page.
+   */
+  type Mount = HTMLElement;
+
+  function queryPath(t: number): [number, number] {
+    return [0.62 * Math.sin(0.31 * t + 1.7), 0.38 * Math.sin(0.23 * t)];
+  }
+
+  function clampInt(v: string | undefined, def: number, min: number, max: number): number {
+    const n = parseInt(v ?? String(def), 10);
+    return Math.max(min, Math.min(max, isNaN(n) ? def : n));
+  }
+
+  const mounts = Array.from(document.querySelectorAll<Mount>('[data-gpu-scene]'));
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const hasWebGpu = typeof navigator !== 'undefined' && 'gpu' in navigator;
+
+  if (mounts.length > 0 && !reduced && hasWebGpu) {
+    (async () => {
+      try {
+        const vgpu = await import('vgpu');
+        const { init, effect, draw, frameLoop, surface, clock } = vgpu;
+
+        const BG_WGSL = `
+          struct Params { time: f32, qx: f32, qy: f32 }
+          @group(0) @binding(0) var<uniform> params: Params;
+
+          @fragment
+          fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
+            let aspect = 16.0 / 9.0;
+            let d = distance(uv, vec2f(0.5));
+            let bg = mix(vec3f(0.055, 0.070, 0.090), vec3f(0.016, 0.022, 0.030), smoothstep(0.15, 0.85, d));
+            let q = vec2f(params.qx, params.qy) * 0.5 + vec2f(0.5, 0.5);
+            let rq = distance(vec2f(uv.x * aspect, uv.y), vec2f(q.x * aspect, q.y));
+            let pulse = 0.5 + 0.5 * sin(params.time * 2.2);
+            var ring = smoothstep(0.014, 0.004, abs(rq - (0.022 + 0.008 * pulse)));
+            ring += 0.35 * smoothstep(0.030, 0.0, rq);
+            var col = bg + vec3f(1.0, 0.85, 0.55) * ring * 0.85;
+            let grid = step(0.9985, fract(uv.x * 40.0)) + step(0.9985, fract(uv.y * 22.5));
+            col += vec3f(0.05, 0.08, 0.09) * grid * 0.35;
+            return vec4f(col, 1.0);
+          }
+        `;
+
+        function makePointsWgsl(seed: number) {
+          return `
+            struct Params { time: f32, qx: f32, qy: f32 }
+            @group(0) @binding(0) var<uniform> params: Params;
+
+            fn hash(n: f32) -> f32 {
+              return fract(sin(n * 12.9898 + ${seed}.0) * 43758.5453);
+            }
+
+            struct VOut {
+              @builtin(position) pos: vec4f,
+              @location(0) uv: vec2f,
+              @location(1) glow: f32,
+              @location(2) layer: f32,
+            }
+
+            @vertex
+            fn vs_main(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> VOut {
+              var corners = array<vec2f, 6>(
+                vec2f(-1.0, -1.0), vec2f(1.0, -1.0), vec2f(1.0, 1.0),
+                vec2f(-1.0, -1.0), vec2f(1.0, 1.0), vec2f(-1.0, 1.0)
+              );
+              let i = f32(ii);
+              let px = hash(i * 2.0) * 1.8 - 0.9;
+              let py = hash(i * 2.0 + 1.0) * 1.0 - 0.5;
+              let lr = hash(i * 3.0 + 7.31);
+              var layer = 0.0;
+              var size = 0.009;
+              if (lr > 0.965) { layer = 2.0; size = 0.026; }
+              else if (lr > 0.86) { layer = 1.0; size = 0.015; }
+
+              let cyc = params.time % 12.0;
+              var vis = 1.0;
+              if (layer < 1.5 && layer > 0.5) { vis = smoothstep(3.0, 4.5, cyc); }
+              else if (layer < 0.5) { vis = smoothstep(6.5, 8.0, cyc); }
+              vis *= 1.0 - smoothstep(11.2, 11.9, cyc);
+
+              let d = distance(vec2f(px, py), vec2f(params.qx, params.qy));
+              let near = 1.0 - smoothstep(0.02, 0.34, d);
+              let pulse = 0.72 + 0.28 * sin(params.time * 2.2);
+
+              var out: VOut;
+              let half2 = corners[vi] * vec2f(size * 0.5625, size);
+              out.pos = vec4f(vec2f(px, py) + half2, 0.0, 1.0);
+              out.uv = corners[vi];
+              out.glow = (near * pulse + 0.22 + 0.30 * layer) * vis;
+              out.layer = layer;
+              return out;
+            }
+
+            struct FIn {
+              @location(0) uv: vec2f,
+              @location(1) glow: f32,
+              @location(2) layer: f32,
+            }
+
+            @fragment
+            fn fs_main(in: FIn) -> @location(0) vec4f {
+              let r = length(in.uv);
+              let disk = 1.0 - smoothstep(0.80, 1.0, r);
+              if (disk <= 0.0) { discard; }
+              var col = vec3f(0.16, 0.62, 0.56);
+              if (in.layer > 1.5) { col = vec3f(1.0, 0.70, 0.28); }
+              else if (in.layer > 0.5) { col = vec3f(0.49, 0.36, 1.0); }
+              col = col * (0.30 + 0.70 * in.glow) + vec3f(1.0) * in.glow * 0.30;
+              return vec4f(col, disk * clamp(0.18 + in.glow, 0.0, 1.0));
+            }
+          `;
+        }
+
+        for (const el of mounts) {
+          const canvas = el.querySelector('canvas');
+          if (!canvas) continue;
+
+          const count = clampInt(el.dataset.points, 320, 32, 4096);
+          const seed = clampInt(el.dataset.seed, 7, 0, 65535);
+          const fps = clampInt(el.dataset.fps, 30, 8, 60);
+
+          try {
+            const gpu = await init();
+            const surf = surface(gpu, canvas, { dpr: [1, 2] });
+
+            const bg = effect(gpu, BG_WGSL, { set: { params: { time: 0, qx: 0, qy: 0 } } });
+            const pts = draw(gpu, { shader: makePointsWgsl(seed), instances: count, vertices: 6 });
+
+            const t = clock(gpu);
+            const handle = frameLoop(
+              gpu,
+              (frame) => {
+                const [qx, qy] = queryPath(t.time);
+                const params = { time: t.time, qx, qy };
+                bg.set({ params });
+                pts.set({ params });
+                frame.pass({ target: surf }, (p) => {
+                  p.draw(bg);
+                  p.draw(pts);
+                });
+              },
+              { fps },
+            );
+
+            el.dataset.gpuState = 'on';
+            canvas.style.opacity = '1';
+            const fb = el.querySelector('.gpu-fallback');
+            if (fb) (fb as HTMLElement).style.display = 'none';
+
+            // Clean up if the element is removed from the DOM (SPA / dev)
+            const mo = new MutationObserver(() => {
+              if (!el.isConnected) {
+                handle.stop();
+                mo.disconnect();
+              }
+            });
+            mo.observe(document.documentElement, { childList: true, subtree: true });
+          } catch {
+            el.dataset.gpuState = 'error';
+            // storyboard remains visible
+          }
+        }
+      } catch {
+        // module failed to load or init — storyboard stays
+      }
+    })();
+  }
+</script>
