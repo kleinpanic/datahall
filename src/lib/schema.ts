@@ -284,7 +284,7 @@ export type VisualLegend = z.infer<typeof VisualLegend>;
  * `visuals` so legacy content keeps validating without renaming fields.
  */
 function normalizeEntry(input: unknown): unknown {
-  if (input && typeof input === "object" && !Array.isArray(input)) {
+  if (input && typeof input === 'object' && !Array.isArray(input)) {
     const obj = input as Record<string, unknown>;
     if (Array.isArray(obj.diagrams) && !obj.visuals) {
       return { ...obj, visuals: obj.diagrams };
@@ -334,4 +334,3 @@ export const DatabaseEntry = z.preprocess(
 
 export type DatabaseEntry = z.infer<typeof DatabaseEntry>;
 export type Section = z.infer<typeof Section>;
-

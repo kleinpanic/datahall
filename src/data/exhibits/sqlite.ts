@@ -92,8 +92,7 @@ export const exhibit: DatabaseEntry = {
       mode: 'sqlite',
       showCrashMoment: true,
       title: 'Write-ahead log: append, commit, checkpoint, truncate',
-      description:
-        'How WAL mode serializes writers and replays/rolls back at next open.',
+      description: 'How WAL mode serializes writers and replays/rolls back at next open.',
       caption:
         'In rollback-journal mode the durability step is replaced by an exclusive lock and a journal copy.',
     },
@@ -102,8 +101,7 @@ export const exhibit: DatabaseEntry = {
       mode: 'read',
       database: 'sqlite',
       title: 'Read path: SQL -> parser -> bytecode VM -> pager -> B-tree leaf page',
-      description:
-        'The end-to-end read path through SQLite, from SQL text to returned tuple.',
+      description: 'The end-to-end read path through SQLite, from SQL text to returned tuple.',
     },
     {
       kind: 'pipeline',
@@ -125,4 +123,3 @@ export const exhibit: DatabaseEntry = {
     { label: 'SQLite WAL docs', href: 'https://www.sqlite.org/wal.html' },
   ],
 };
-

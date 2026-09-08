@@ -28,11 +28,7 @@ const legacyHasMatch = LegacyComponent !== null;
 const isUnknown = !Renderer && !legacyHasMatch;
 ---
 
-<figure
-  class="panel my-6 p-4"
-  data-visual-kind={visual.kind}
-  data-visual-title={visual.title}
->
+<figure class="panel my-6 p-4" data-visual-kind={visual.kind} data-visual-title={visual.title}>
   <figcaption class="mb-3 flex flex-wrap items-baseline justify-between gap-3">
     <span class="font-mono text-xs tracking-widest text-[var(--color-fg-muted)] uppercase">
       <span
@@ -43,9 +39,9 @@ const isUnknown = !Renderer && !legacyHasMatch;
     </span>
     {
       visual.kind !== 'legend' && (
-        <span class="font-mono text-[0.65rem] text-[var(--color-fg-muted)]"
-          >click nodes for description</span
-        >
+        <span class="font-mono text-[0.65rem] text-[var(--color-fg-muted)]">
+          click nodes for description
+        </span>
       )
     }
   </figcaption>
@@ -61,21 +57,17 @@ const isUnknown = !Renderer && !legacyHasMatch;
         </strong>
         <span class="mt-2 block">{visual.description}</span>
         {dev && (
-          <span class="mt-2 block font-mono text-xs">This is shown in development builds only.</span>
+          <span class="mt-2 block font-mono text-xs">
+            This is shown in development builds only.
+          </span>
         )}
       </div>
     )
   }
 
-  {
-    !isUnknown && visual.kind === 'diagram' && LegacyComponent && (
-      <LegacyComponent />
-    )
-  }
+  {!isUnknown && visual.kind === 'diagram' && LegacyComponent && <LegacyComponent />}
 
-  {
-    !isUnknown && visual.kind !== 'diagram' && Renderer && <Renderer visual={visual} />
-  }
+  {!isUnknown && visual.kind !== 'diagram' && Renderer && <Renderer visual={visual} />}
 
   {
     visual.kind !== 'legend' &&
@@ -83,7 +75,7 @@ const isUnknown = !Renderer && !legacyHasMatch;
       'caption' in visual &&
       (visual as { caption?: string }).caption && (
         <p class="mt-3 text-xs text-[var(--color-fg-muted)] italic">
-          <span class="font-mono not-italic text-[var(--color-fg-muted)]">[caption] </span>
+          <span class="font-mono text-[var(--color-fg-muted)] not-italic">[caption] </span>
           {(visual as { caption?: string }).caption}
         </p>
       )

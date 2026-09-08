@@ -28,22 +28,57 @@ const PIPELINE_PRESETS: Record<string, Stage[]> = {
     { id: 'sql', label: 'SQL', detail: 'parser, planner, bytecode VM', category: 'execution' },
     { id: 'pager', label: 'pager', detail: 'fetches pages from disk or WAL', category: 'memory' },
     { id: 'btree', label: 'B-tree', detail: 'walks pages, finds row', category: 'index' },
-    { id: 'page', label: 'B-tree leaf page', detail: 'parses cell, returns tuple', category: 'storage' },
+    {
+      id: 'page',
+      label: 'B-tree leaf page',
+      detail: 'parses cell, returns tuple',
+      category: 'storage',
+    },
   ],
   'sqlite:write': [
     { id: 'sql', label: 'SQL', detail: 'parser, planner, bytecode VM', category: 'execution' },
-    { id: 'wal', label: 'WAL append', detail: 'frame written to write-ahead log', category: 'durability' },
+    {
+      id: 'wal',
+      label: 'WAL append',
+      detail: 'frame written to write-ahead log',
+      category: 'durability',
+    },
     { id: 'pager', label: 'pager', detail: 'updates B-tree pages in memory', category: 'memory' },
     { id: 'btree', label: 'B-tree', detail: 'pages split or merge', category: 'index' },
-    { id: 'page', label: 'B-tree leaf page', detail: 'new tuple version persisted', category: 'storage' },
+    {
+      id: 'page',
+      label: 'B-tree leaf page',
+      detail: 'new tuple version persisted',
+      category: 'storage',
+    },
   ],
   'postgresql:read': [
-    { id: 'client', label: 'client', detail: 'wire protocol, parameter binding', category: 'network' },
-    { id: 'parse', label: 'parser + analyzer', detail: 'parse tree, names resolved', category: 'execution' },
+    {
+      id: 'client',
+      label: 'client',
+      detail: 'wire protocol, parameter binding',
+      category: 'network',
+    },
+    {
+      id: 'parse',
+      label: 'parser + analyzer',
+      detail: 'parse tree, names resolved',
+      category: 'execution',
+    },
     { id: 'plan', label: 'planner', detail: 'cost-based access paths', category: 'execution' },
     { id: 'exec', label: 'executor', detail: 'pulls tuples top-down', category: 'execution' },
-    { id: 'heap', label: 'heap pages', detail: 'visibility check against xmin/xmax', category: 'storage' },
-    { id: 'wal', label: 'WAL / shared buffers', detail: 'replay-safe snapshot read', category: 'durability' },
+    {
+      id: 'heap',
+      label: 'heap pages',
+      detail: 'visibility check against xmin/xmax',
+      category: 'storage',
+    },
+    {
+      id: 'wal',
+      label: 'WAL / shared buffers',
+      detail: 'replay-safe snapshot read',
+      category: 'durability',
+    },
   ],
   'postgresql:write': [
     { id: 'client', label: 'client', detail: 'wire protocol', category: 'network' },
@@ -51,7 +86,12 @@ const PIPELINE_PRESETS: Record<string, Stage[]> = {
     { id: 'plan', label: 'planner', detail: 'cost-based access paths', category: 'execution' },
     { id: 'exec', label: 'executor', detail: 'writes new tuple, marks old', category: 'execution' },
     { id: 'wal', label: 'WAL append', detail: 'fsync on commit', category: 'durability' },
-    { id: 'heap', label: 'heap page', detail: 'in-place update with xmin/xmax', category: 'storage' },
+    {
+      id: 'heap',
+      label: 'heap page',
+      detail: 'in-place update with xmin/xmax',
+      category: 'storage',
+    },
     { id: 'bg', label: 'background writer', detail: 'flushes dirty pages', category: 'memory' },
   ],
   'postgresql:crash-recovery': [
@@ -73,7 +113,12 @@ const PIPELINE_PRESETS: Record<string, Stage[]> = {
     { id: 'innodb', label: 'InnoDB', detail: 'write new row version', category: 'index' },
     { id: 'undo', label: 'undo log', detail: 'append roll-pointer record', category: 'durability' },
     { id: 'redo', label: 'redo log (LSN)', detail: 'fsync on commit', category: 'durability' },
-    { id: 'dblwr', label: 'doublewrite buffer', detail: 'crash-safe page writes', category: 'durability' },
+    {
+      id: 'dblwr',
+      label: 'doublewrite buffer',
+      detail: 'crash-safe page writes',
+      category: 'durability',
+    },
   ],
   'lancedb:ann-search': [
     { id: 'q', label: 'query vector', detail: 'embedding of the question', category: 'execution' },
@@ -84,7 +129,12 @@ const PIPELINE_PRESETS: Record<string, Stage[]> = {
   ],
   'qdrant:ann-search': [
     { id: 'q', label: 'query vector', detail: 'incoming embedding', category: 'execution' },
-    { id: 'filter', label: 'payload filter', detail: 'JSON predicate -> bitmap', category: 'execution' },
+    {
+      id: 'filter',
+      label: 'payload filter',
+      detail: 'JSON predicate -> bitmap',
+      category: 'execution',
+    },
     { id: 'hnsw', label: 'HNSW graph', detail: 'constrained by bitmap', category: 'index' },
     { id: 'score', label: 'score + top-k', detail: 'merge across shards', category: 'execution' },
   ],
@@ -107,15 +157,16 @@ const COLOR_BY_CATEGORY: Record<Stage['category'], string> = {
   network: '#7c5cff',
 };
 
-const key = visual.database && visual.mode
-  ? `${visual.database}:${visual.mode}`
-  : visual.mode;
+const key = visual.database && visual.mode ? `${visual.database}:${visual.mode}` : visual.mode;
 const preset = PIPELINE_PRESETS[key] ?? PIPELINE_PRESETS[visual.mode] ?? [];
 
-const stages = preset.length > 0 ? preset : [
-  { id: 'p', label: 'stage 1', detail: 'placeholder', category: 'execution' as const },
-  { id: 'q', label: 'stage 2', detail: 'placeholder', category: 'storage' as const },
-];
+const stages =
+  preset.length > 0
+    ? preset
+    : [
+        { id: 'p', label: 'stage 1', detail: 'placeholder', category: 'execution' as const },
+        { id: 'q', label: 'stage 2', detail: 'placeholder', category: 'storage' as const },
+      ];
 
 const layoutWidth = 720;
 const layoutHeight = 220;
@@ -132,78 +183,96 @@ const centerY = 110;
   data-pipeline-database={visual.database}
 >
   <defs>
-    <marker id="dh-pipe-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-      <path d="M0,0 L10,5 L0,10 z" fill="#8b95a7" />
+    <marker
+      id="dh-pipe-arrow"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto"
+    >
+      <path d="M0,0 L10,5 L0,10 z" fill="#8b95a7"></path>
     </marker>
   </defs>
 
   {/* stage boxes */}
-  {stages.map((stage, idx) => {
-    const x = 20 + idx * stageWidth;
-    const fill = COLOR_BY_CATEGORY[stage.category];
-    return (
-      <g
-        data-node-title={`${stage.label} — ${stage.detail} (category: ${stage.category})`}
-        tabindex="0"
-        role="button"
-        aria-label={`${stage.label}: ${stage.detail}`}
-      >
-        <rect
-          x={x + 8}
-          y={centerY - 36}
-          width={stageWidth - 16}
-          height={72}
-          rx={8}
-          fill={`${fill}22`}
-          stroke={fill}
-          stroke-width="1.5"
-        />
-        <text
-          x={x + stageWidth / 2}
-          y={centerY - 14}
-          text-anchor="middle"
-          fill={fill}
-          font-size="13"
-          font-family="ui-monospace, monospace"
-        >{stage.label}</text>
-        <text
-          x={x + stageWidth / 2}
-          y={centerY + 6}
-          text-anchor="middle"
-          fill="#8b95a7"
-          font-size="10"
-          font-family="ui-monospace, monospace"
-        >{stage.category}</text>
-        <text
-          x={x + stageWidth / 2}
-          y={centerY + 22}
-          text-anchor="middle"
-          fill="#8b95a7"
-          font-size="9"
-          font-family="ui-monospace, monospace"
-        >{stage.detail}</text>
-      </g>
-    );
-  })}
+  {
+    stages.map((stage, idx) => {
+      const x = 20 + idx * stageWidth;
+      const fill = COLOR_BY_CATEGORY[stage.category];
+      return (
+        <g
+          data-node-title={`${stage.label} — ${stage.detail} (category: ${stage.category})`}
+          tabindex="0"
+          role="button"
+          aria-label={`${stage.label}: ${stage.detail}`}
+        >
+          <rect
+            x={x + 8}
+            y={centerY - 36}
+            width={stageWidth - 16}
+            height={72}
+            rx={8}
+            fill={`${fill}22`}
+            stroke={fill}
+            stroke-width="1.5"
+          />
+          <text
+            x={x + stageWidth / 2}
+            y={centerY - 14}
+            text-anchor="middle"
+            fill={fill}
+            font-size="13"
+            font-family="ui-monospace, monospace"
+          >
+            {stage.label}
+          </text>
+          <text
+            x={x + stageWidth / 2}
+            y={centerY + 6}
+            text-anchor="middle"
+            fill="#8b95a7"
+            font-size="10"
+            font-family="ui-monospace, monospace"
+          >
+            {stage.category}
+          </text>
+          <text
+            x={x + stageWidth / 2}
+            y={centerY + 22}
+            text-anchor="middle"
+            fill="#8b95a7"
+            font-size="9"
+            font-family="ui-monospace, monospace"
+          >
+            {stage.detail}
+          </text>
+        </g>
+      );
+    })
+  }
 
   {/* arrows between stages */}
-  {stages.slice(0, -1).map((_, idx) => {
-    const x1 = 20 + idx * stageWidth + stageWidth - 8;
-    const x2 = 20 + (idx + 1) * stageWidth + 8;
-    return (
-      <line
-        x1={x1}
-        y1={centerY}
-        x2={x2 - 6}
-        y2={centerY}
-        stroke="#8b95a7"
-        stroke-width="1.5"
-        stroke-dasharray="4 3"
-        marker-end="url(#dh-pipe-arrow)"
-        class="dh-pulse"
-      />
-    );
-  })}
+  {
+    stages.slice(0, -1).map((_, idx) => {
+      const x1 = 20 + idx * stageWidth + stageWidth - 8;
+      const x2 = 20 + (idx + 1) * stageWidth + 8;
+      return (
+        <line
+          x1={x1}
+          y1={centerY}
+          x2={x2 - 6}
+          y2={centerY}
+          stroke="#8b95a7"
+          stroke-width="1.5"
+          stroke-dasharray="4 3"
+          marker-end="url(#dh-pipe-arrow)"
+          class="dh-pulse"
+        />
+      );
+    })
+  }
 
   {/* mode badge */}
   <g>
@@ -215,16 +284,14 @@ const centerY = 110;
       rx={10}
       fill="transparent"
       stroke="var(--color-border)"
-      stroke-width="1"
-    />
+      stroke-width="1"></rect>
     <text
       x={20 + (stageWidth - 16) / 2}
       y={layoutHeight - 18}
       text-anchor="middle"
       fill="#8b95a7"
       font-size="10"
-      font-family="ui-monospace, monospace"
-    >mode: {visual.mode}</text>
+      font-family="ui-monospace, monospace">mode: {visual.mode}</text
+    >
   </g>
 </svg>
-

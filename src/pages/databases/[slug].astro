@@ -139,11 +139,7 @@ const legendVisual: Visual = {
         Diagrams
       </h2>
       <div class="grid gap-6">
-        {
-          entry.visuals.map((v) => (
-            <VisualModuleRenderer visual={v} />
-          ))
-        }
+        {entry.visuals.map((v) => <VisualModuleRenderer visual={v} />)}
       </div>
     </section>
   </article>

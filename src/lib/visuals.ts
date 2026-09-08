@@ -44,8 +44,8 @@ type AstroComponent = (props: Record<string, any>) => any;
  * by the legacy `component` field, so old `{ kind: "diagram", component: "SqliteFileFormat" }`
  * entries keep working without an enum lookup.
  */
-export const VISUAL_REGISTRY: Readonly<Record<RegisteredVisualKind, AstroComponent | null>> = Object.freeze(
-  {
+export const VISUAL_REGISTRY: Readonly<Record<RegisteredVisualKind, AstroComponent | null>> =
+  Object.freeze({
     // `diagram` is special-cased by `VisualModuleRenderer` itself, which
     // dispatches via the legacy `component` field. We deliberately do not
     // register a renderer for it here to avoid a circular import between
@@ -57,8 +57,7 @@ export const VISUAL_REGISTRY: Readonly<Record<RegisteredVisualKind, AstroCompone
     'vector-index': VectorIndexPlayground as unknown as AstroComponent,
     'family-map': DatabaseFamilyMap as unknown as AstroComponent,
     legend: LegendPanel as unknown as AstroComponent,
-  },
-);
+  });
 
 /** Get the renderer for a kind. `null` if unregistered or special-cased. */
 export function getVisualRenderer(kind: string): AstroComponent | null {

@@ -14,16 +14,9 @@
  */
 import { describe, it, expect } from 'vitest';
 import { Visual } from '../../src/lib/schema';
-import {
-  VISUAL_KINDS,
-  isRegisteredKind,
-  registeredKinds,
-} from '../../src/lib/visuals-registry';
+import { VISUAL_KINDS, isRegisteredKind, registeredKinds } from '../../src/lib/visuals-registry';
 import { getVisualRenderer } from '../../src/lib/visuals';
-import {
-  getLegacyDiagramFactory,
-  LEGACY_DIAGRAM_NAMES,
-} from '../../src/lib/visuals-legacy';
+import { getLegacyDiagramFactory, LEGACY_DIAGRAM_NAMES } from '../../src/lib/visuals-legacy';
 import { exhibits } from '../../src/lib/exhibits';
 
 describe('visual registry', () => {
@@ -140,9 +133,7 @@ describe('exhibit visuals taxonomy', () => {
     expect(new Set(rel)).toEqual(new Set(['sqlite', 'postgresql', 'mariadb']));
     for (const slug of rel) {
       const e = exhibits.find((x) => x.slug === slug)!;
-      const ok = e.visuals.some(
-        (v) => v.kind === 'wal-timeline' || v.kind === 'page-microscope',
-      );
+      const ok = e.visuals.some((v) => v.kind === 'wal-timeline' || v.kind === 'page-microscope');
       expect(ok, `${slug} should have a wal-timeline or page-microscope visual`).toBe(true);
     }
   });
