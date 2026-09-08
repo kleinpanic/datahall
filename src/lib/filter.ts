@@ -30,12 +30,7 @@ export function filterExhibits(
 
     if (!q) return true;
 
-    const hay = [
-      e.name,
-      e.tagline,
-      e.summary,
-      ...e.highlights.map((h) => h.label + ' ' + h.value),
-    ]
+    const hay = [e.name, e.tagline, e.summary, ...e.highlights.map((h) => h.label + ' ' + h.value)]
       .join(' ')
       .toLowerCase();
 
