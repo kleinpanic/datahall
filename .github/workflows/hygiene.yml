@@ -1,0 +1,24 @@
+name: Repo hygiene
+
+# Daily gate: fails loudly while anything "not done" is open
+# (open PRs, open Dependabot alerts, red CI/Deploy on main).
+on:
+  schedule:
+    - cron: "0 13 * * *" # 09:00 America/New_York
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pull-requests: read
+  security-events: read
+
+jobs:
+  check:
+    if: github.repository == 'kleinpanic/datahall'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/repo-hygiene.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}

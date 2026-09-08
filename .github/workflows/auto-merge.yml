@@ -1,0 +1,37 @@
+name: Auto-merge green PRs
+
+# Merge trusted PRs the moment their CI is green so nothing lingers open.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  schedule:
+    - cron: "*/20 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    if: github.repository == 'kleinpanic/datahall'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge green PRs from trusted authors
+        run: |
+          set -uo pipefail
+          for pr in $(gh pr list --state open --limit 50 --json number,author \
+              --jq '.[] | select(.author.login == "dependabot[bot]" or .author.login == "datahall-dev" or .author.login == "kleinpanic" or .author.login == "app/github-actions") | .number'); do
+            echo "::group::PR $pr"
+            if gh pr checks "$pr" --required > /dev/null 2>&1; then
+              echo "checks green, merging #$pr"
+              gh pr merge "$pr" --squash --delete-branch || echo "merge failed (conflicts?) skipping"
+            else
+              echo "checks not green or pending, skipping #$pr"
+            fi
+            echo "::endgroup::"
+          done
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
