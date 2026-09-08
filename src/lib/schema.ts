@@ -125,7 +125,7 @@ export const Section = z.object({
 
 export const SourceRef = z.object({
   label: z.string().min(1).max(120),
-  href: z.string().url(),
+  href: z.url(),
 });
 export type SourceRef = z.infer<typeof SourceRef>;
 
