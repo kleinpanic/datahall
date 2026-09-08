@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import ExhibitCard from '../components/ExhibitCard.astro';
+import GalleryFilter from '../components/GalleryFilter.astro';
 import { exhibits } from '../lib/exhibits';
 ---
 
@@ -9,12 +9,19 @@ import { exhibits } from '../lib/exhibits';
     <p class="pill mb-4">Gallery</p>
     <h1 class="display-heading mb-3 text-4xl">Every exhibit on display</h1>
     <p class="max-w-2xl text-[var(--color-fg-muted)]">
-      Each card links to a full exhibit page with diagrams, walk-throughs, and short code excerpts.
-      Sort is by initial release year.
+      Interactive filter by paradigm, family, or free-text search. Each card links to a full exhibit
+      page with diagrams, walk-throughs, and short code excerpts. Sort is by initial release year.
     </p>
   </header>
 
-  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-    {exhibits.map((entry, i) => <ExhibitCard entry={entry} index={i} />)}
+  <GalleryFilter exhibits={exhibits} />
+
+  <div
+    class="mt-12 border-t border-[var(--color-border)] pt-8 text-xs text-[var(--color-fg-muted)]"
+  >
+    <p>
+      Tip: Use <kbd class="font-mono">⌘K</kbd> / <kbd class="font-mono">Ctrl+K</kbd> to focus the search.
+      Filters update the URL for easy sharing.
+    </p>
   </div>
 </BaseLayout>
