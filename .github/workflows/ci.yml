@@ -56,5 +56,5 @@ jobs:
           PLAYWRIGHT_BASE_URL: http://localhost:4321
         run: |
           SITE_BASE=/datahall/ pnpm run preview &
-          npx wait-on http://localhost:4321/datahall/ -t 60000
+          pnpm exec wait-on http://localhost:4321/datahall/ -t 60000
           pnpm run test:e2e
