@@ -41,6 +41,16 @@ test.describe('datahall smoke', () => {
     }
   });
 
+  test('gpu-scene visual mounts with a static storyboard fallback', async ({ page }) => {
+    await page.goto('/datahall/databases/qdrant/');
+    const scene = page.locator('[data-gpu-scene]');
+    await expect(scene).toHaveCount(1);
+    await expect(scene.locator('canvas')).toBeAttached();
+    if ((await scene.getAttribute('data-gpu-state')) !== 'on') {
+      await expect(scene.locator('svg[role="img"]')).toBeVisible();
+    }
+  });
+
   test('GitHub source link is in the footer', async ({ page }) => {
     await page.goto('/datahall/');
     const footer = page.getByRole('contentinfo');

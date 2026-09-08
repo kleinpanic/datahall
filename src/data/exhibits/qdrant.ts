@@ -73,6 +73,29 @@ export const exhibit: DatabaseEntry = {
   ],
   visuals: [
     {
+      kind: 'gpu-scene',
+      scene: 'hnsw-layers',
+      points: 340,
+      seed: 21,
+      fps: 30,
+      title: 'HNSW layers, animated (WebGPU)',
+      description:
+        'A live reenactment of layered HNSW search: sparse amber entry nodes appear first, then the violet mid layer, then the dense teal base layer. The query ring sweeps the space and its nearest neighbours glow.',
+      caption:
+        'Simplified 2-D projection of hierarchical navigable small-world search. Without WebGPU, or when reduced motion is preferred, the static storyboard is shown instead.',
+      concepts: ['HNSW', 'layered graph', 'greedy descent', 'nearest neighbours'],
+      sourceRefs: [
+        {
+          label: 'Qdrant documentation — Indexing',
+          href: 'https://qdrant.tech/documentation/concepts/indexing/',
+        },
+        {
+          label: 'Malkov & Yashunin (2016), arXiv:1603.09320',
+          href: 'https://arxiv.org/abs/1603.09320',
+        },
+      ],
+    },
+    {
       kind: 'vector-index',
       mode: 'hnsw',
       showPayloadFilter: true,

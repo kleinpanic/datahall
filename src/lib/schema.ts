@@ -255,6 +255,24 @@ const VisualLegend = z.object({
     ]),
 });
 
+/** GPU-accelerated animated scene (WebGPU via the `vgpu` library) with a static SVG fallback. */
+const VisualGpuScene = z.object({
+  kind: z.literal('gpu-scene'),
+  title: z.string().min(1).max(120),
+  description: z.string().min(1).max(300),
+  /** Which animated scene to play. `hnsw-layers` is the only one today. */
+  scene: z.literal('hnsw-layers').default('hnsw-layers'),
+  /** Point count for the instanced field. */
+  points: z.number().int().min(32).max(4096).default(320),
+  /** Deterministic layout seed shared by the WGSL scene and the SVG storyboard. */
+  seed: z.number().int().min(0).max(65535).default(7),
+  /** Frame cap. Reduced-motion visitors always get the static storyboard. */
+  fps: z.number().int().min(8).max(60).default(30),
+  caption: z.string().max(280).optional(),
+  concepts: z.array(z.string().min(1).max(80)).max(12).optional(),
+  sourceRefs: z.array(SourceRef).max(6).optional(),
+});
+
 export const Visual = z.discriminatedUnion('kind', [
   VisualDiagram,
   VisualPipeline,
@@ -263,6 +281,7 @@ export const Visual = z.discriminatedUnion('kind', [
   VisualVectorIndex,
   VisualFamilyMap,
   VisualLegend,
+  VisualGpuScene,
 ]);
 export type Visual = z.infer<typeof Visual>;
 export type VisualKind = Visual['kind'];
@@ -274,6 +293,7 @@ export type VisualWalTimeline = z.infer<typeof VisualWalTimeline>;
 export type VisualVectorIndex = z.infer<typeof VisualVectorIndex>;
 export type VisualFamilyMap = z.infer<typeof VisualFamilyMap>;
 export type VisualLegend = z.infer<typeof VisualLegend>;
+export type VisualGpuScene = z.infer<typeof VisualGpuScene>;
 
 /* ----------------------------------------------------------------------- */
 /*  Database entry                                                          */

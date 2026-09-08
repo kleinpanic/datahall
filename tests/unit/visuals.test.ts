@@ -30,6 +30,7 @@ describe('visual registry', () => {
         'vector-index',
         'family-map',
         'legend',
+        'gpu-scene',
       ]),
     );
   });
@@ -67,6 +68,7 @@ describe('visual registry', () => {
       },
       'family-map': { kind: 'family-map' },
       legend: { kind: 'legend' },
+      'gpu-scene': { kind: 'gpu-scene', title: 't', description: 'd' },
     } as const;
 
     for (const [kind, sample] of Object.entries(samples)) {
@@ -135,6 +137,19 @@ describe('exhibit visuals taxonomy', () => {
       const e = exhibits.find((x) => x.slug === slug)!;
       const ok = e.visuals.some((v) => v.kind === 'wal-timeline' || v.kind === 'page-microscope');
       expect(ok, `${slug} should have a wal-timeline or page-microscope visual`).toBe(true);
+    }
+  });
+
+  it('qdrant ships the gpu-scene visual (WebGPU scene with static fallback)', () => {
+    const qdrant = exhibits.find((e) => e.slug === 'qdrant');
+    expect(qdrant).toBeTruthy();
+    const scene = qdrant!.visuals.find((v) => v.kind === 'gpu-scene');
+    expect(scene).toBeTruthy();
+    if (scene?.kind === 'gpu-scene') {
+      expect(scene.scene).toBe('hnsw-layers');
+      expect(scene.points).toBeGreaterThanOrEqual(32);
+      expect(scene.fps).toBeGreaterThanOrEqual(8);
+      expect((scene.sourceRefs ?? []).length).toBeGreaterThan(0);
     }
   });
 

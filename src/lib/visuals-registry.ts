@@ -15,6 +15,7 @@ export const VISUAL_KINDS = [
   'vector-index',
   'family-map',
   'legend',
+  'gpu-scene',
 ] as const;
 
 export type RegisteredVisualKind = (typeof VISUAL_KINDS)[number];
