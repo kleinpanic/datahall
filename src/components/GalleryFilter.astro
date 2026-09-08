@@ -138,39 +138,47 @@ const initialFiltered = exhibits;
 
 <script>
   // Client-side reactive filter island
-  const root = document.getElementById('gallery-filter');
-  if (root) {
-    const searchInput = root.querySelector('#gallery-search');
-    const clearBtn = root.querySelector('#clear-filters');
-    const paradigmContainer = root.querySelector('#paradigm-chips');
-    const familyContainer = root.querySelector('#family-chips');
-    const countEl = root.querySelector('#results-count');
-    const grid = root.querySelector('#gallery-grid');
+  interface FilterState {
+    query: string;
+    paradigm: string | null;
+    families: string[];
+  }
 
-    let state = {
-      query: '',
-      paradigm: null,
-      families: [],
-    };
+  function initGalleryFilter(): void {
+    const root = document.getElementById('gallery-filter');
+    if (!root) return;
 
-    function updateURL() {
+    const searchInput = root.querySelector<HTMLInputElement>('#gallery-search');
+    const clearBtn = root.querySelector<HTMLButtonElement>('#clear-filters');
+    const paradigmContainer = root.querySelector<HTMLElement>('#paradigm-chips');
+    const familyContainer = root.querySelector<HTMLElement>('#family-chips');
+    const countEl = root.querySelector<HTMLElement>('#results-count');
+    const grid = root.querySelector<HTMLElement>('#gallery-grid');
+
+    if (!searchInput || !clearBtn || !paradigmContainer || !familyContainer || !countEl || !grid) {
+      return;
+    }
+
+    let state: FilterState = { query: '', paradigm: null, families: [] };
+
+    const updateURL = (): void => {
       const params = new URLSearchParams();
       if (state.query) params.set('q', state.query);
       if (state.paradigm) params.set('p', state.paradigm);
       if (state.families.length) params.set('f', state.families.join(','));
-      const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+      const qs = params.toString();
+      const newUrl = window.location.pathname + (qs ? `?${qs}` : '');
       history.replaceState(null, '', newUrl);
-    }
+    };
 
-    function applyFilter() {
-      const cards = grid.querySelectorAll('.gallery-card');
+    const applyFilter = (): void => {
+      const cards = grid.querySelectorAll<HTMLElement>('.gallery-card');
       let visible = 0;
 
       cards.forEach((card) => {
-        const paradigm = card.dataset.paradigm;
-        const familiesStr = card.dataset.families || '';
-        const families = familiesStr ? familiesStr.split(',') : [];
-        const searchHay = card.dataset.search || '';
+        const paradigm = card.dataset.paradigm ?? '';
+        const families = (card.dataset.families ?? '').split(',').filter(Boolean);
+        const searchHay = card.dataset.search ?? '';
 
         let matches = true;
 
@@ -186,28 +194,26 @@ const initialFiltered = exhibits;
           if (!searchHay.includes(q)) matches = false;
         }
 
-        if (matches) {
-          card.style.display = '';
-          visible++;
-        } else {
-          card.style.display = 'none';
-        }
+        card.style.display = matches ? '' : 'none';
+        if (matches) visible++;
       });
 
       countEl.textContent = `Showing ${visible} of ${cards.length} exhibits`;
       updateURL();
-    }
+    };
 
     // Wire search
-    searchInput.addEventListener('input', (e) => {
-      state.query = e.target.value;
+    searchInput.addEventListener('input', (e: Event) => {
+      const target = e.target as HTMLInputElement;
+      state.query = target.value;
       applyFilter();
     });
 
-    // Paradigm chips (single select for simplicity, toggle off)
-    paradigmContainer.querySelectorAll('.paradigm-chip').forEach((btn) => {
+    // Paradigm chips (single select, toggle off)
+    paradigmContainer.querySelectorAll<HTMLButtonElement>('.paradigm-chip').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const p = btn.dataset.paradigm;
+        const p = btn.dataset.paradigm ?? null;
+        if (!p) return;
         if (state.paradigm === p) {
           state.paradigm = null;
           btn.classList.remove('active');
@@ -223,10 +229,11 @@ const initialFiltered = exhibits;
       });
     });
 
-    // Family chips (multi-select)
-    familyContainer.querySelectorAll('.family-chip').forEach((btn) => {
+    // Family chips (multi-select, AND)
+    familyContainer.querySelectorAll<HTMLButtonElement>('.family-chip').forEach((btn) => {
       btn.addEventListener('click', () => {
         const f = btn.dataset.family;
+        if (!f) return;
         if (state.families.includes(f)) {
           state.families = state.families.filter((x) => x !== f);
           btn.classList.remove('active');
@@ -248,8 +255,8 @@ const initialFiltered = exhibits;
       applyFilter();
     });
 
-    // Keyboard shortcut hint
-    document.addEventListener('keydown', (e) => {
+    // Keyboard shortcut: Cmd/Ctrl+K focuses search
+    document.addEventListener('keydown', (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         searchInput.focus();
@@ -257,32 +264,32 @@ const initialFiltered = exhibits;
       }
     });
 
-    // Initialize from URL on load
-    function initFromURL() {
-      const params = new URLSearchParams(window.location.search);
-      if (params.has('q')) {
-        state.query = params.get('q');
-        searchInput.value = state.query;
+    // Restore state from URL
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('q')) {
+      state.query = params.get('q') ?? '';
+      searchInput.value = state.query;
+    }
+    if (params.has('p')) {
+      const p = params.get('p');
+      if (p) {
+        state.paradigm = p;
+        const btn = paradigmContainer.querySelector(`[data-paradigm="${p}"]`);
+        btn?.classList.add('active');
       }
-      if (params.has('p')) {
-        state.paradigm = params.get('p');
-        const btn = paradigmContainer.querySelector(`[data-paradigm="${state.paradigm}"]`);
-        if (btn) btn.classList.add('active');
-      }
-      if (params.has('f')) {
-        state.families = params.get('f').split(',').filter(Boolean);
-        state.families.forEach((fam) => {
-          const btn = familyContainer.querySelector(`[data-family="${fam}"]`);
-          if (btn) btn.classList.add('active');
-        });
-      }
-      applyFilter();
+    }
+    if (params.has('f')) {
+      state.families = (params.get('f') ?? '').split(',').filter(Boolean);
+      state.families.forEach((fam) => {
+        const btn = familyContainer.querySelector(`[data-family="${fam}"]`);
+        btn?.classList.add('active');
+      });
     }
 
-    // Bootstrap
-    initFromURL();
-    applyFilter(); // ensure count is correct
+    applyFilter();
   }
+
+  initGalleryFilter();
 </script>
 
 <style>
