@@ -4,7 +4,7 @@ name: Repo hygiene
 # (open PRs, open Dependabot alerts, red CI/Deploy on main).
 on:
   schedule:
-    - cron: "0 13 * * *" # 09:00 America/New_York
+    - cron: '0 13 * * *' # 09:00 America/New_York
   workflow_dispatch: {}
 
 permissions:

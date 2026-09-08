@@ -39,7 +39,7 @@ for wf in CI Deploy; do
   concl=$(gh run list --workflow "$wf" --branch main --limit 1 \
     --json conclusion --jq '.[0].conclusion // "running"' 2>/dev/null || echo "unknown")
   case "$concl" in
-    success) summary+=("$wf on main: success" ;;
+    success) summary+=("$wf on main: success") ;;
     *) issues=1; summary+=("$wf on main: $concl") ;;
   esac
 done
