@@ -1,3 +1,0 @@
-allowBuilds:
-  '@vgpu/adapter-node': set this to true or false
-  webgpu: set this to true or false
