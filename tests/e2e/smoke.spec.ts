@@ -13,7 +13,7 @@ test.describe('datahall smoke', () => {
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Pull back the cover');
 
     for (const slug of exhibitSlugs()) {
-      await expect(page.getByRole('link', { name: new RegExp(slug, 'i') })).toBeVisible();
+      await expect(page.locator(`a[href*="/databases/${slug}/"]`).first()).toBeVisible();
     }
     await page.screenshot({ path: 'test-results/home.png', fullPage: true });
     expect(consoleErrors).toEqual([]);

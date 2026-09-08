@@ -1,0 +1,270 @@
+---
+/**
+ * PageMicroscope -- reusable page/block anatomy view.
+ *
+ * Modes:
+ *   - sqlite: 4 KiB page, header + cells + free space + overflow chain
+ *   - postgres: 8 KiB heap page, header + item pointers + heap tuples + free space
+ *   - innodb: 16 KiB page, FIL header + record list + page directory + free space
+ *
+ * The `complexity: "full"` option adds a tuple-detail strip below the page.
+ */
+import type { VisualMicroscope } from '../../lib/schema';
+
+interface Props {
+  visual: VisualMicroscope;
+}
+
+const { visual } = Astro.props;
+
+interface PageLayout {
+  pageSize: string;
+  headerLabel: string;
+  headerFields: Array<{ label: string; note?: string }>;
+  body: Array<{ kind: 'cells' | 'tuples' | 'records' | 'free'; label: string; detail?: string }>;
+  overflow?: { label: string };
+  tupleDetail?: Array<{ label: string; hex?: string }>;
+  pointerMapNote?: string;
+}
+
+const LAYOUTS: Record<VisualMicroscope['mode'], PageLayout> = {
+  sqlite: {
+    pageSize: '4 KiB',
+    headerLabel: 'page header (8 B)',
+    headerFields: [
+      { label: 'page type', note: 'leaf/interior/overflow' },
+      { label: 'first freeblock' },
+      { label: 'cell count' },
+      { label: 'cell content area' },
+    ],
+    body: [
+      { kind: 'cells', label: 'cell pointer array', detail: 'grows down' },
+      { kind: 'free', label: 'unallocated' },
+      { kind: 'cells', label: 'cell content area', detail: 'grows up' },
+    ],
+    overflow: { label: 'overflow page chain' },
+    tupleDetail: [
+      { label: 'payload len' },
+      { label: 'rowid' },
+      { label: 'record header' },
+      { label: 'data' },
+    ],
+  },
+  postgres: {
+    pageSize: '8 KiB',
+    headerLabel: 'page header (24 B)',
+    headerFields: [
+      { label: 'pd_lsn' },
+      { label: 'pd_checksum' },
+      { label: 'pd_lower / pd_upper' },
+      { label: 'pd_special' },
+    ],
+    body: [
+      { kind: 'tuples', label: 'item-id array', detail: 'grows down' },
+      { kind: 'free', label: 'free space' },
+      { kind: 'tuples', label: 'heap tuples', detail: 'grows up' },
+    ],
+    pointerMapNote: 'TPD slot exists for HOT updates',
+    tupleDetail: [
+      { label: 't_xmin' },
+      { label: 't_xmax' },
+      { label: 't_cid / t_infomask' },
+      { label: 'user data' },
+    ],
+  },
+  innodb: {
+    pageSize: '16 KiB',
+    headerLabel: 'FIL header (38 B)',
+    headerFields: [
+      { label: 'space id' },
+      { label: 'prev / next page' },
+      { label: 'LSN' },
+      { label: 'page type' },
+    ],
+    body: [
+      { kind: 'records', label: 'infimum + records', detail: 'linked list' },
+      { kind: 'free', label: 'free space' },
+      { kind: 'records', label: 'page directory', detail: 'binary-search slots' },
+    ],
+    tupleDetail: [
+      { label: 'DB_TRX_ID (6B)' },
+      { label: 'DB_ROLL_PTR (7B)' },
+      { label: 'non-null bitmap' },
+      { label: 'user data' },
+    ],
+  },
+};
+
+const layout = LAYOUTS[visual.mode];
+const showTuple = visual.complexity === 'full';
+const viewW = 720;
+const viewH = showTuple ? 360 : 260;
+---
+
+<svg
+  viewBox={`0 0 ${viewW} ${viewH}`}
+  role="img"
+  aria-label={`Page anatomy for ${visual.mode}: ${layout.pageSize} page with header, body, and ${showTuple ? 'tuple detail' : 'pointer map'}`}
+  class="h-auto w-full"
+  data-microscope-mode={visual.mode}
+  data-microscope-complexity={visual.complexity}
+>
+  <defs>
+    <linearGradient id="dh-page-fade" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#00ffe1" stop-opacity="0.22"></stop>
+      <stop offset="1" stop-color="#00ffe1" stop-opacity="0.06"></stop>
+    </linearGradient>
+  </defs>
+
+  {/* page outer */}
+  <g data-node-title={`${visual.mode} page — ${layout.pageSize}`}>
+    <rect
+      x={40}
+      y={30}
+      width={640}
+      height={showTuple ? 140 : 180}
+      rx={6}
+      fill="url(#dh-page-fade)"
+      stroke="#00ffe1"
+      stroke-width="1.5"></rect>
+    <text x={50} y={50} fill="#00ffe1" font-size="11" font-family="ui-monospace, monospace"
+      >{visual.mode} page · {layout.pageSize}</text
+    >
+  </g>
+
+  {/* header strip */}
+  <g data-node-title={`page header: ${layout.headerLabel}`}>
+    <rect x={50} y={62} width={620} height={36} rx={4} fill="#7c5cff22" stroke="#7c5cff"></rect>
+    <text x={60} y={78} fill="#7c5cff" font-size="11" font-family="ui-monospace, monospace"
+      >{layout.headerLabel}</text
+    >
+    <text x={60} y={92} fill="#8b95a7" font-size="9" font-family="ui-monospace, monospace">
+      {layout.headerFields.map((f) => f.label).join(' · ')}
+    </text>
+  </g>
+
+  {/* body */}
+  {
+    layout.body.map((seg, idx) => {
+      const y = 106 + idx * 32;
+      const color =
+        seg.kind === 'free'
+          ? '#8b95a7'
+          : seg.kind === 'tuples'
+            ? '#ff5d8f'
+            : seg.kind === 'records'
+              ? '#ffb347'
+              : '#5cffb1';
+      return (
+        <g data-node-title={`${seg.label}${seg.detail ? ' — ' + seg.detail : ''}`}>
+          <rect x={60} y={y} width={600} height={24} rx={3} fill={`${color}22`} stroke={color} />
+          <text x={68} y={y + 16} fill={color} font-size="11" font-family="ui-monospace, monospace">
+            {seg.label}
+          </text>
+          {seg.detail && (
+            <text
+              x={690}
+              y={y + 16}
+              text-anchor="end"
+              fill="#8b95a7"
+              font-size="9"
+              font-family="ui-monospace, monospace"
+            >
+              {seg.detail}
+            </text>
+          )}
+        </g>
+      );
+    })
+  }
+
+  {/* tuple detail strip */}
+  {
+    showTuple && layout.tupleDetail && (
+      <g data-node-title={`tuple detail: ${layout.tupleDetail.map((t) => t.label).join(', ')}`}>
+        <rect
+          x={40}
+          y={180}
+          width={640}
+          height={120}
+          rx={6}
+          fill="#0a0d12"
+          stroke="#5cffb1"
+          stroke-dasharray="4 3"
+        />
+        <text x={50} y={198} fill="#5cffb1" font-size="11" font-family="ui-monospace, monospace">
+          tuple detail (full mode)
+        </text>
+        {layout.tupleDetail.map((t, idx) => {
+          const x = 50 + idx * 155;
+          return (
+            <g>
+              <rect
+                x={x}
+                y={210}
+                width={140}
+                height={70}
+                rx={4}
+                fill="#5cffb111"
+                stroke="#5cffb1"
+                stroke-width="1"
+              />
+              <text
+                x={x + 70}
+                y={228}
+                text-anchor="middle"
+                fill="#5cffb1"
+                font-size="11"
+                font-family="ui-monospace, monospace"
+              >
+                {t.label}
+              </text>
+              {t.hex && (
+                <text
+                  x={x + 70}
+                  y={250}
+                  text-anchor="middle"
+                  fill="#8b95a7"
+                  font-size="9"
+                  font-family="ui-monospace, monospace"
+                >
+                  {t.hex}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </g>
+    )
+  }
+
+  {/* overflow / pointer-map note */}
+  {
+    (layout.overflow || layout.pointerMapNote) && (
+      <g>
+        {layout.overflow && (
+          <text
+            x={50}
+            y={viewH - 24}
+            fill="#f5a623"
+            font-size="10"
+            font-family="ui-monospace, monospace"
+          >
+            {layout.overflow.label}
+          </text>
+        )}
+        {layout.pointerMapNote && (
+          <text
+            x={50}
+            y={viewH - 24}
+            fill="#f5a623"
+            font-size="10"
+            font-family="ui-monospace, monospace"
+          >
+            {layout.pointerMapNote}
+          </text>
+        )}
+      </g>
+    )
+  }
+</svg>

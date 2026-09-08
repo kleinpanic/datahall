@@ -10,6 +10,11 @@ export const exhibit: DatabaseEntry = {
   paradigm: 'server-vector',
   concurrency: 'lock-free',
   storage: 'vector-columnar',
+  families: ['vector'],
+  deploymentModel: 'server',
+  storageEngines: ['columnar', 'lsm-tree', 'vector-columnar'],
+  indexTypes: ['hnsw', 'bitmap', 'full-text'],
+  workloads: ['rag', 'semantic-search', 'hybrid'],
   language: 'Rust',
   initialRelease: 2021,
   license: 'Apache-2.0',
@@ -66,8 +71,42 @@ export const exhibit: DatabaseEntry = {
       ],
     },
   ],
-  diagrams: [
+  visuals: [
     {
+      kind: 'vector-index',
+      mode: 'hnsw',
+      showPayloadFilter: true,
+      showTopK: true,
+      title: 'HNSW graph with payload filter',
+      description:
+        'Qdrant combines HNSW with a payload filter engine: filtered queries prune graph edges whose payload doesnt match, so only valid candidates reach the top-k.',
+    },
+    {
+      kind: 'wal-timeline',
+      mode: 'qdrant',
+      showCrashMoment: true,
+      title: 'WAL + collection snapshot timeline',
+      description:
+        'Writes are appended to a WAL and periodically flushed into segment files. Crash recovery replays the WAL into the most recent snapshot.',
+    },
+    {
+      kind: 'pipeline',
+      mode: 'filtered-search',
+      database: 'qdrant',
+      title: 'Filtered vector search pipeline',
+      description:
+        'A query vector enters the HNSW graph; payload filters prune candidates before the top-k selection.',
+    },
+    {
+      kind: 'pipeline',
+      mode: 'read',
+      database: 'qdrant',
+      title: 'Read path: vector + payload filter -> top-k',
+      description:
+        'The query combines a vector similarity search with a structured payload filter; the result is a list of (id, score, payload) tuples.',
+    },
+    {
+      kind: 'diagram',
       component: 'VectorIndex',
       title: 'HNSW graph traversal',
       description:

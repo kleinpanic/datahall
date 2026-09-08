@@ -10,6 +10,11 @@ export const exhibit: DatabaseEntry = {
   paradigm: 'embedded-sql',
   concurrency: 'multi-process-mvcc',
   storage: 'single-file-btree',
+  families: ['relational'],
+  deploymentModel: 'embedded',
+  storageEngines: ['single-file-btree', 'b-plus-tree'],
+  indexTypes: ['btree', 'rtree', 'full-text'],
+  workloads: ['embedded', 'oltp'],
   language: 'C',
   initialRelease: 2000,
   license: 'Public Domain',
@@ -39,18 +44,18 @@ export const exhibit: DatabaseEntry = {
     {
       title: 'In-process SQL compiler',
       detail:
-        'A full SQL parser, planner, and bytecode VM lives in your process. There is no daemon, no socket, no authentication layer — that is also why it is fast.',
+        'A full SQL parser, planner, and bytecode VM lives in your process. There is no daemon, no socket, no authentication layer -- that is also why it is fast.',
     },
   ],
   sections: [
     {
       heading: 'On-disk layout',
       paragraphs: [
-        'A SQLite file begins with a 100-byte header that contains the magic string "SQLite format 3\\0", the page size, the schema cookie, and pointers to the freelist and the most recently committed transaction. The rest of the file is a sequence of equally-sized pages.',
+        'A SQLite file begins with a 100-byte header that contains the magic string "SQLite format 3\0", the page size, the schema cookie, and pointers to the freelist and the most recently committed transaction. The rest of the file is a sequence of equally-sized pages.',
         'Pages are typed: lock-byte, freelist, B-tree interior, B-tree leaf, payload overflow, and pointer-map. The B-tree interior pages form a navigational index; B-tree leaf pages hold actual row data. Pages that are too small to fit a row spill into a chain of overflow pages linked by 4-byte next-page pointers.',
       ],
       bullets: [
-        'A 4 KiB page can hold 2–3 typical rows, or 40+ small rows.',
+        'A 4 KiB page can hold 2-3 typical rows, or 40+ small rows.',
         'Schema changes bump the schema cookie so prepared statements from older schemas are re-prepared automatically.',
         'PRAGMA integrity_check walks every page to detect corruption.',
       ],
@@ -67,15 +72,54 @@ export const exhibit: DatabaseEntry = {
     {
       heading: 'Query evaluation',
       paragraphs: [
-        'SQLite uses a flat-bytecode VM. The query planner builds a tree of operations — open-read, open-write, sort, filter, aggregate, join — and the executor dispatches each op in turn. There is no JIT, no vectorized engine, no parallelism. For the workloads SQLite targets (embedded, low-concurrency, single-user) this trade-off wins: a 600 KB library that boots in microseconds and never pages out.',
+        'SQLite uses a flat-bytecode VM. The query planner builds a tree of operations -- open-read, open-write, sort, filter, aggregate, join -- and the executor dispatches each op in turn. There is no JIT, no vectorized engine, no parallelism. For the workloads SQLite targets (embedded, low-concurrency, single-user) this trade-off wins: a 600 KB library that boots in microseconds and never pages out.',
       ],
     },
   ],
-  diagrams: [
+  visuals: [
     {
+      kind: 'page-microscope',
+      mode: 'sqlite',
+      complexity: 'full',
+      title: 'A 4 KiB SQLite page, under the microscope',
+      description:
+        'A single SQLite B-tree leaf page with header, cell-pointer array, and cell content area.',
+      caption:
+        'Real pages also include a freeblock chain. The pointer-map page tracks parent/child relationships and is used by autovacuum.',
+    },
+    {
+      kind: 'wal-timeline',
+      mode: 'sqlite',
+      showCrashMoment: true,
+      title: 'Write-ahead log: append, commit, checkpoint, truncate',
+      description: 'How WAL mode serializes writers and replays/rolls back at next open.',
+      caption:
+        'In rollback-journal mode the durability step is replaced by an exclusive lock and a journal copy.',
+    },
+    {
+      kind: 'pipeline',
+      mode: 'read',
+      database: 'sqlite',
+      title: 'Read path: SQL -> parser -> bytecode VM -> pager -> B-tree leaf page',
+      description: 'The end-to-end read path through SQLite, from SQL text to returned tuple.',
+    },
+    {
+      kind: 'pipeline',
+      mode: 'write',
+      database: 'sqlite',
+      title: 'Write path: SQL -> WAL append -> B-tree update -> checkpoint',
+      description:
+        'The end-to-end write path through SQLite, with WAL durability and eventual checkpointing.',
+    },
+    {
+      kind: 'diagram',
       component: 'SqliteFileFormat',
       title: 'On-disk file layout',
       description: '100-byte header, then a chain of B-tree pages, with the WAL as a sidecar file.',
     },
+  ],
+  sourceRefs: [
+    { label: 'SQLite file format docs', href: 'https://www.sqlite.org/fileformat2.html' },
+    { label: 'SQLite WAL docs', href: 'https://www.sqlite.org/wal.html' },
   ],
 };

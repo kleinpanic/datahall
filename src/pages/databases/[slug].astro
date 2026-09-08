@@ -1,10 +1,9 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { getExhibit, exhibitSlugs } from '../../lib/exhibits';
-import SqliteFileFormat from '../../components/diagrams/SqliteFileFormat.astro';
-import MvccTimeline from '../../components/diagrams/MvccTimeline.astro';
-import Replication from '../../components/diagrams/Replication.astro';
-import VectorIndex from '../../components/diagrams/VectorIndex.astro';
+import VisualModuleRenderer from '../../components/visuals/VisualModuleRenderer.astro';
+import LegendPanel from '../../components/visuals/LegendPanel.astro';
+import type { Visual } from '../../lib/schema';
 import { withBase } from '../../consts';
 
 export function getStaticPaths() {
@@ -20,17 +19,21 @@ if (!entry) {
   return new Response(`Unknown exhibit "${slug}"`, { status: 404 });
 }
 
-// Minimal type: Astro .astro default exports are zero-arg component factories.
-// We use a structural alias because `AstroComponentFactory` is not part of
-// the public API (it's exposed only under astro/dist/types/public/context).
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type DiagramComponent = (props: Record<string, any>) => any;
-
-const DIAGRAM_MAP: Record<string, DiagramComponent> = {
-  SqliteFileFormat,
-  MvccTimeline,
-  Replication,
-  VectorIndex,
+// One legend visual per exhibit page so the color taxonomy is always
+// visible at the top.
+const legendVisual: Visual = {
+  kind: 'legend',
+  title: 'Color legend',
+  description: `Color taxonomy used across ${entry.name} diagrams.`,
+  categories: [
+    { key: 'storage', color: '#00ffe1', label: 'storage' },
+    { key: 'execution', color: '#7c5cff', label: 'execution' },
+    { key: 'index', color: '#5cffb1', label: 'index' },
+    { key: 'memory', color: '#ffb347', label: 'memory / cache' },
+    { key: 'durability', color: '#f5a623', label: 'durability / recovery' },
+    { key: 'concurrency', color: '#ff5d8f', label: 'concurrency' },
+    { key: 'network', color: '#7c5cff', label: 'network / distribution' },
+  ],
 };
 ---
 
@@ -67,6 +70,10 @@ const DIAGRAM_MAP: Record<string, DiagramComponent> = {
       <h1 class="display-heading mb-3 text-5xl" style={`color:${entry.accent}`}>{entry.name}</h1>
       <p class="max-w-3xl text-xl text-[var(--color-fg-muted)]">{entry.tagline}</p>
     </header>
+
+    <section class="mb-12">
+      <LegendPanel visual={legendVisual} />
+    </section>
 
     <section class="mb-12">
       <p class="max-w-3xl text-lg leading-relaxed">{entry.summary}</p>
@@ -131,19 +138,9 @@ const DIAGRAM_MAP: Record<string, DiagramComponent> = {
         <span class="accent-rule mr-3 inline-block align-middle"></span>
         Diagrams
       </h2>
-      {
-        entry.diagrams.map((d) => {
-          const Comp = DIAGRAM_MAP[d.component];
-          if (!Comp) {
-            return (
-              <div class="panel p-4 text-sm text-[var(--color-fg-muted)]">
-                Diagram <code>{d.component}</code> not implemented yet. {d.description}
-              </div>
-            );
-          }
-          return <Comp />;
-        })
-      }
+      <div class="grid gap-6">
+        {entry.visuals.map((v) => <VisualModuleRenderer visual={v} />)}
+      </div>
     </section>
   </article>
 </BaseLayout>

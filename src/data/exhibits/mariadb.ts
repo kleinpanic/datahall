@@ -10,6 +10,11 @@ export const exhibit: DatabaseEntry = {
   paradigm: 'client-server',
   concurrency: 'mvcc',
   storage: 'heap-btree',
+  families: ['relational'],
+  deploymentModel: 'server',
+  storageEngines: ['heap-btree', 'columnar', 'b-plus-tree'],
+  indexTypes: ['btree', 'full-text', 'rtree', 'hash'],
+  workloads: ['oltp', 'analytics'],
   language: 'C++',
   initialRelease: 2009,
   license: 'GPLv2',
@@ -66,14 +71,48 @@ export const exhibit: DatabaseEntry = {
       ],
     },
   ],
-  diagrams: [
+  visuals: [
     {
+      kind: 'page-microscope',
+      mode: 'innodb',
+      complexity: 'full',
+      title: 'InnoDB page anatomy',
+      description:
+        'Each 16 KiB InnoDB page carries a FIL header, page directory slot array, infimum/supremum records, and user records with transaction IDs.',
+    },
+    {
+      kind: 'wal-timeline',
+      mode: 'innodb',
+      showCrashMoment: true,
+      title: 'Redo log timeline',
+      description:
+        'Log writes append to ib_logfile0/1; the log buffer flushes on commit. Crash recovery replays the redo log from the last checkpoint.',
+    },
+    {
+      kind: 'pipeline',
+      mode: 'read',
+      database: 'mariadb',
+      title: 'Read path: SQL -> optimizer -> storage engine -> InnoDB page',
+      description:
+        'MariaDB uses a pluggable storage engine layer; reads go through the optimizer into InnoDB, which serves pages from the buffer pool.',
+    },
+    {
+      kind: 'pipeline',
+      mode: 'write',
+      database: 'mariadb',
+      title: 'Write path: SQL -> redo log -> doublewrite buffer -> tablespace',
+      description:
+        'Writes append to the redo log, then to the doublewrite buffer, then to the tablespace file. Crash recovery restores dirty pages from the doublewrite.',
+    },
+    {
+      kind: 'diagram',
       component: 'MvccTimeline',
       title: 'MVCC snapshot timeline',
       description:
         'InnoDB keeps undo chains; each transaction walks them to find the version visible at its snapshot.',
     },
     {
+      kind: 'diagram',
       component: 'Replication',
       title: 'Async + semi-sync replication',
       description:
