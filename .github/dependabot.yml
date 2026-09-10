@@ -4,7 +4,13 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    versioning-strategy: increase
+    # pnpm lockfile updater regularly fails on `increase` when grouped updates
+    # touch transitive deps (e.g. @vitest/mocker). `increase-if-necessary` keeps
+    # manifests minimally bumped; the explicit ignore suppresses the known noisy
+    # transitive so weekly runs stay green.
+    versioning-strategy: increase-if-necessary
+    ignore:
+      - dependency-name: '@vitest/mocker'
     commit-message:
       prefix: chore(deps)
     groups:
