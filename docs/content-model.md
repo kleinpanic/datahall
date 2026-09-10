@@ -21,7 +21,32 @@ Every exhibit is a TypeScript file under `src/data/exhibits/` exporting an
 | `highlights`     | Highlight[]       | 2-8 label-value stat cards                                              |
 | `features`       | Feature[]         | 2-8 short feature blurbs                                                |
 | `sections`       | Section[]         | 2-6 narrative sections, each with paragraphs / bullets / code           |
-| `diagrams`       | DiagramRef[]      | 1-4 component refs to `src/components/diagrams/*.astro`                 |
+| `visuals`        | Visual[]          | 2-8 data-driven visuals (see below)                                     |
+
+## Visual kinds
+
+`visuals` is a discriminated union on `kind` (Zod-validated in `schema.ts`).
+Every kind has a renderer registered in `src/lib/visuals.ts` and is mounted by
+`src/components/visuals/VisualModuleRenderer.astro`, which supplies the panel
+frame, kind badge, title, and caption — components render only the body.
+
+| kind              | data                                            | renderer                                            |
+| ----------------- | ----------------------------------------------- | --------------------------------------------------- |
+| `diagram`         | legacy `component` name                         | shim into `src/components/diagrams/` (frozen set)   |
+| `pipeline`        | read/write mode + database                      | `AnatomyPipeline.astro`                             |
+| `page-microscope` | storage mode + complexity                       | `PageMicroscope.astro`                              |
+| `wal-timeline`    | storage mode + crash moment                     | `WalTimeline.astro`                                 |
+| `vector-index`    | index mode (hnsw / ivf-pq)                      | `VectorIndexPlayground.astro`                       |
+| `family-map`      | —                                               | `DatabaseFamilyMap.astro`                           |
+| `legend`          | —                                               | `LegendPanel.astro`                                 |
+| `gpu-scene`       | scene, points, seed, fps                        | `GpuScene.astro` (vgpu WebGPU + static fallback)    |
+| `gpu-metrics`     | vram / utilization / powerW / temperatureC      | `GpuMetrics.astro` (server-rendered cards)          |
+| `time-series`     | up to 4 named series of `{t, v}` points + unit  | `TimeSeries.astro` (server-rendered SVG line chart) |
+| `index-stats`     | levels (nodes/fanout), cardinality, selectivity | `IndexStats.astro` (proportional bars + stat cards) |
+| `query-plan`      | ordered steps with optional cost / rows         | `QueryPlan.astro` (EXPLAIN-style waterfall)         |
+
+The GPU-side kinds (`gpu-scene` plus the telemetry kinds) are documented in
+[`vgpu-visuals.md`](vgpu-visuals.md).
 
 ## Validation
 
@@ -30,10 +55,11 @@ messages. To add an exhibit:
 
 1. Copy an existing exhibit file under `src/data/exhibits/`.
 2. Update the values.
-3. If you need a new diagram, add it under `src/components/diagrams/` and
-   register the component name in `src/pages/databases/[slug].astro`'s
-   `DIAGRAM_MAP`.
-4. Run `pnpm run test:unit`. It must pass.
+3. If you need a new visual kind, add the component under
+   `src/components/visuals/`, register it in `src/lib/visuals.ts` and
+   `src/lib/visuals-registry.ts`, and extend the Zod union in `schema.ts`.
+4. Run `pnpm run test:unit`. It must pass (the registry test asserts every
+   declared kind parses and has a renderer).
 5. Open a PR — the CI workflow will rebuild and re-test.
 
 ## Future: TUI consumer

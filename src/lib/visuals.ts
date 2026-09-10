@@ -20,6 +20,12 @@ import PageMicroscope from '../components/visuals/PageMicroscope.astro';
 import VectorIndexPlayground from '../components/visuals/VectorIndexPlayground.astro';
 import WalTimeline from '../components/visuals/WalTimeline.astro';
 
+// Data-driven metric kinds (server-rendered, no client JS)
+import GpuMetrics from '../components/visuals/GpuMetrics.astro';
+import TimeSeries from '../components/visuals/TimeSeries.astro';
+import IndexStats from '../components/visuals/IndexStats.astro';
+import QueryPlan from '../components/visuals/QueryPlan.astro';
+
 import {
   VISUAL_KINDS,
   type RegisteredVisualKind,
@@ -59,6 +65,10 @@ export const VISUAL_REGISTRY: Readonly<Record<RegisteredVisualKind, AstroCompone
     'family-map': DatabaseFamilyMap as unknown as AstroComponent,
     legend: LegendPanel as unknown as AstroComponent,
     'gpu-scene': GpuScene as unknown as AstroComponent,
+    'gpu-metrics': GpuMetrics as unknown as AstroComponent,
+    'time-series': TimeSeries as unknown as AstroComponent,
+    'index-stats': IndexStats as unknown as AstroComponent,
+    'query-plan': QueryPlan as unknown as AstroComponent,
   });
 
 /** Get the renderer for a kind. `null` if unregistered or special-cased. */

@@ -31,13 +31,15 @@ describe('visual registry', () => {
         'family-map',
         'legend',
         'gpu-scene',
+        'gpu-metrics',
+        'time-series',
+        'index-stats',
+        'query-plan',
       ]),
     );
   });
 
   it('every schema-declared kind has a renderer', () => {
-    // Visual.options exposes the literal kinds inside the discriminated union.
-    // We assert by parsing sample payloads and checking renderer lookup.
     const samples = {
       diagram: { kind: 'diagram', title: 't', description: 'd', component: 'SqliteFileFormat' },
       pipeline: {
@@ -69,15 +71,21 @@ describe('visual registry', () => {
       'family-map': { kind: 'family-map' },
       legend: { kind: 'legend' },
       'gpu-scene': { kind: 'gpu-scene', title: 't', description: 'd' },
+      'gpu-metrics': { kind: 'gpu-metrics', title: 't', description: 'd' },
+      'time-series': {
+        kind: 'time-series',
+        title: 't',
+        description: 'd',
+        series: [{ name: 'ops', points: [{ t: 0, v: 10 }] }],
+      },
+      'index-stats': { kind: 'index-stats', title: 't', description: 'd' },
+      'query-plan': { kind: 'query-plan', title: 't', description: 'd', steps: [{ step: 'scan' }] },
     } as const;
 
     for (const [kind, sample] of Object.entries(samples)) {
       const parsed = Visual.safeParse(sample);
       expect(parsed.success, `sample for ${kind} failed: ${JSON.stringify(parsed)}`).toBe(true);
       expect(isRegisteredKind(kind)).toBe(true);
-      // `kind: 'diagram'` is special-cased: it dispatches via the legacy
-      // `component` field rather than a registered renderer. Every other
-      // kind must resolve to a real Astro component.
       if (kind === 'diagram') {
         expect(getVisualRenderer(kind)).toBeNull();
       } else {
@@ -158,13 +166,44 @@ describe('exhibit visuals taxonomy', () => {
       for (const v of e.visuals) {
         if (v.kind === 'diagram') {
           expect(typeof v.component).toBe('string');
-          // If the component is one of our four legacy diagrams, the factory
-          // must resolve (otherwise the page renders an empty placeholder).
           if (LEGACY_DIAGRAM_NAMES.includes(v.component as (typeof LEGACY_DIAGRAM_NAMES)[number])) {
             expect(getLegacyDiagramFactory(v.component)).toBeTruthy();
           }
         }
       }
+    }
+  });
+
+  it('postgresql ships query-plan and index-stats visuals', () => {
+    const pg = exhibits.find((e) => e.slug === 'postgresql')!;
+    expect(pg).toBeTruthy();
+    const plan = pg!.visuals.find((v) => v.kind === 'query-plan');
+    expect(plan).toBeTruthy();
+    if (plan?.kind === 'query-plan') {
+      expect(plan.steps.length).toBeGreaterThanOrEqual(3);
+      expect(plan.steps.some((s) => s.cost !== undefined)).toBe(true);
+    }
+    const stats = pg!.visuals.find((v) => v.kind === 'index-stats');
+    expect(stats).toBeTruthy();
+    if (stats?.kind === 'index-stats') {
+      expect((stats.levels ?? []).length).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('qdrant ships gpu-metrics and time-series telemetry visuals', () => {
+    const q = exhibits.find((e) => e.slug === 'qdrant')!;
+    expect(q).toBeTruthy();
+    const gpu = q!.visuals.find((v) => v.kind === 'gpu-metrics');
+    expect(gpu).toBeTruthy();
+    if (gpu?.kind === 'gpu-metrics') {
+      expect(gpu.vram).toBeTruthy();
+      expect(gpu.utilization ?? 0).toBeGreaterThan(0);
+    }
+    const ts = q!.visuals.find((v) => v.kind === 'time-series');
+    expect(ts).toBeTruthy();
+    if (ts?.kind === 'time-series') {
+      expect(ts.series.length).toBeGreaterThanOrEqual(1);
+      expect(ts.series[0]?.points.length ?? 0).toBeGreaterThanOrEqual(4);
     }
   });
 });

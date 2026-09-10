@@ -35,7 +35,8 @@ else
 fi
 
 # 3. Latest CI + Deploy conclusion on main
-for wf in CI Deploy; do
+# Note: workflow names are "CI" and "Deploy to GitHub Pages"
+for wf in "CI" "Deploy to GitHub Pages"; do
   concl=$(gh run list --workflow "$wf" --branch main --limit 1 \
     --json conclusion --jq '.[0].conclusion // "running"' 2>/dev/null || echo "unknown")
   case "$concl" in

@@ -1,0 +1,168 @@
+---
+/**
+ * TimeSeries -- server-rendered multi-series line chart (up to 4 series).
+ * Pure SVG: no client JavaScript, no console output, scales with the panel.
+ * Series colors follow the visual-system layer palette (teal / violet / amber / rose).
+ */
+import type { VisualTimeSeries } from '../../lib/schema';
+
+interface Props {
+  visual: VisualTimeSeries;
+}
+const { visual } = Astro.props;
+
+const W = 560;
+const H = 210;
+const PAD = { top: 12, right: 14, bottom: 26, left: 42 };
+const plotW = W - PAD.left - PAD.right;
+const plotH = H - PAD.top - PAD.bottom;
+
+const series = visual.series ?? [];
+const allPoints = series.flatMap((s) => s.points);
+const hasData = allPoints.length > 0;
+
+const tMin = hasData ? Math.min(...allPoints.map((p) => p.t)) : 0;
+const tMax = hasData ? Math.max(...allPoints.map((p) => p.t)) : 1;
+const vRawMin = hasData ? Math.min(...allPoints.map((p) => p.v)) : 0;
+const vRawMax = hasData ? Math.max(...allPoints.map((p) => p.v)) : 1;
+const vSpan = Math.max(vRawMax - vRawMin, Math.abs(vRawMax) * 0.1, 1e-9);
+const vMin = vRawMin - vSpan * 0.1;
+const vMax = vRawMax + vSpan * 0.1;
+const tSpan = Math.max(tMax - tMin, 1e-9);
+
+const x = (t: number) => PAD.left + ((t - tMin) / tSpan) * plotW;
+const y = (v: number) => PAD.top + plotH - ((v - vMin) / (vMax - vMin)) * plotH;
+
+const COLORS = ['#2dd4bf', '#7c5cff', '#ffb347', '#ff5d8f'];
+
+const fmt = (n: number): string =>
+  Math.abs(n) >= 1_000_000
+    ? `${(n / 1_000_000).toFixed(1)}M`
+    : Math.abs(n) >= 1000
+      ? `${(n / 1000).toFixed(1)}k`
+      : `${Math.round(n * 10) / 10}`;
+
+const GRID_COUNT = 4;
+const gridVals = Array.from(
+  { length: GRID_COUNT },
+  (_, i) => vMin + ((vMax - vMin) * i) / (GRID_COUNT - 1),
+);
+const tMid = (tMin + tMax) / 2;
+const baseline = PAD.top + plotH;
+
+const plotted = series.map((s, i) => {
+  const pts = s.points.map((p, j) => ({
+    x: x(p.t),
+    y: y(p.v),
+    first: j === 0,
+  }));
+  const line = pts
+    .map((p) => `${p.first ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+    .join(' ');
+  const last = pts[pts.length - 1];
+  const area =
+    series.length === 1 && pts.length > 1 && last
+      ? `${line} L${last.x.toFixed(1)},${baseline.toFixed(1)} L${pts[0].x.toFixed(1)},${baseline.toFixed(1)} Z`
+      : '';
+  return { name: s.name, color: COLORS[i % COLORS.length], line, area, last, count: pts.length };
+});
+---
+
+<div>
+  <p class="mb-3 text-xs text-[var(--color-fg-muted)]">{visual.description}</p>
+  {
+    hasData ? (
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        role="img"
+        aria-label={`${visual.title}: line chart in ${visual.unit}`}
+        class="h-auto w-full"
+      >
+        {gridVals.map((gv) => (
+          <g>
+            <line
+              x1={PAD.left}
+              x2={W - PAD.right}
+              y1={y(gv)}
+              y2={y(gv)}
+              stroke="var(--color-border)"
+              stroke-width="1"
+            />
+            <text
+              x={PAD.left - 6}
+              y={y(gv) + 3}
+              text-anchor="end"
+              font-size="9"
+              font-family="ui-monospace, monospace"
+              fill="var(--color-fg-muted)"
+            >
+              {fmt(gv)}
+            </text>
+          </g>
+        ))}
+        <text
+          x={PAD.left}
+          y={H - 8}
+          font-size="9"
+          font-family="ui-monospace, monospace"
+          fill="var(--color-fg-muted)"
+        >
+          {fmt(tMin)}
+        </text>
+        <text
+          x={PAD.left + plotW / 2}
+          y={H - 8}
+          text-anchor="middle"
+          font-size="9"
+          font-family="ui-monospace, monospace"
+          fill="var(--color-fg-muted)"
+        >
+          {fmt(tMid)}
+        </text>
+        <text
+          x={W - PAD.right}
+          y={H - 8}
+          text-anchor="end"
+          font-size="9"
+          font-family="ui-monospace, monospace"
+          fill="var(--color-fg-muted)"
+        >
+          {fmt(tMax)}
+        </text>
+        {plotted.map((p) => (
+          <g>
+            {p.area && <path d={p.area} fill={p.color} opacity="0.07" />}
+            {p.count > 1 && (
+              <path
+                d={p.line}
+                fill="none"
+                stroke={p.color}
+                stroke-width="1.8"
+                stroke-linejoin="round"
+                stroke-linecap="round"
+              />
+            )}
+            {p.last && <circle cx={p.last.x} cy={p.last.y} r="2.6" fill={p.color} />}
+          </g>
+        ))}
+      </svg>
+    ) : (
+      <p class="font-mono text-xs text-[var(--color-fg-muted)]">no series data</p>
+    )
+  }
+  {
+    hasData && (
+      <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+        {plotted.map((p) => (
+          <span class="flex items-center gap-1.5 font-mono text-[10px] text-[var(--color-fg-muted)]">
+            <span class="inline-block h-0.5 w-3 rounded" style={`background:${p.color}`} />
+            {p.name}
+          </span>
+        ))}
+        <span class="ml-auto rounded border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-fg-muted)]">
+          {visual.unit}
+        </span>
+      </div>
+    )
+  }
+</div>

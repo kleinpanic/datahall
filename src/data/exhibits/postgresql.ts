@@ -118,5 +118,47 @@ export const exhibit: DatabaseEntry = {
       title: 'Streaming replication topology',
       description: 'Primary streams WAL; one replica streams further to a cascading replica.',
     },
+    {
+      kind: 'query-plan',
+      title: 'EXPLAIN plan: filtered join',
+      description:
+        'A representative plan tree from EXPLAIN (ANALYZE): a nested loop joins an index scan on users to a filtered scan on events; costs are planner units.',
+      steps: [
+        { step: 'Limit', cost: 42.5, rows: 10 },
+        { step: 'Sort', cost: 41.9, rows: 96 },
+        { step: 'Nested Loop', cost: 38.2, rows: 96 },
+        { step: 'Index Scan using users_pkey', cost: 8.3, rows: 12 },
+        { step: 'Seq Scan on events (filter: kind = 2)', cost: 28.1, rows: 8 },
+      ],
+      caption: 'Costs are planner units: 1.0 is one sequential page fetch.',
+      concepts: ['EXPLAIN', 'cost model', 'plan tree'],
+      sourceRefs: [
+        {
+          label: 'PostgreSQL: EXPLAIN',
+          href: 'https://www.postgresql.org/docs/current/sql-explain.html',
+        },
+      ],
+    },
+    {
+      kind: 'index-stats',
+      title: 'B-tree shape over 1.2M rows',
+      description:
+        'Three levels at the default 90% fill factor: one root, ~32 internal routing pages, and a leaf level that dominates the page count.',
+      levels: [
+        { level: 0, nodes: 1, fanout: 32 },
+        { level: 1, nodes: 32, fanout: 160 },
+        { level: 2, nodes: 5100, fanout: 0 },
+      ],
+      cardinality: 1200000,
+      selectivity: 0.021,
+      caption: 'Upper levels are pure routing pages; leaves carry heap TIDs.',
+      concepts: ['B-tree fanout', 'fill factor', 'selectivity'],
+      sourceRefs: [
+        {
+          label: 'PostgreSQL: Indexes',
+          href: 'https://www.postgresql.org/docs/current/indexes.html',
+        },
+      ],
+    },
   ],
 };

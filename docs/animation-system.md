@@ -1,7 +1,8 @@
 # Animation System
 
 All animation in datahall is CSS-driven, intentionally minimal, and respects
-`prefers-reduced-motion`.
+`prefers-reduced-motion` — with one deliberate exception: the WebGPU scenes
+(see below).
 
 ## Tokens
 
@@ -25,8 +26,9 @@ Defined in `src/styles/global.css` under `@layer components`:
 }
 ```
 
-(Note: the Phase 1 implementation does not yet include this override; it
-will be added in Phase 2 along with the TUI consumer.)
+`VisualModuleRenderer.astro` additionally ships a renderer-level override
+that pins `animation-duration` / `transition-duration` to ~0 for everything
+inside a mounted visual, so no visual kind can opt out of reduced motion.
 
 ## When we reach for JS
 
@@ -36,4 +38,22 @@ A diagram needs JavaScript when:
 - Pointer interactivity matters (hover, click).
 - The diagram must respond to live query state.
 
-None of the Phase 1 diagrams fall into that category. They are static SVG.
+Most visuals stay static SVG. The one current exception is `gpu-scene`.
+
+## WebGPU scenes (vgpu)
+
+`gpu-scene` visuals (rendered by `GpuScene.astro`) animate via
+[vgpu](https://vgpu.sh), a WebGPU compute/graphics runtime. The rules:
+
+1. **Server-first:** a static SVG storyboard is rendered from the same
+   deterministic hash the WGSL shader uses, so the visual is complete before
+   any script runs.
+2. **Conditional boot:** the client script only initializes vgpu when
+   `navigator.gpu` exists **and** the visitor has not requested
+   `prefers-reduced-motion: reduce`. Under reduced motion or without WebGPU
+   the static storyboard is the final render — no spinner, no flicker.
+3. **Graceful failure:** any vgpu/WebGPU error leaves the storyboard in place;
+   the e2e smoke test asserts both the canvas attachment and the fallback SVG.
+
+Full mount contract, shader layout, and telemetry kinds:
+[`vgpu-visuals.md`](vgpu-visuals.md).

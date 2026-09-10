@@ -14,8 +14,26 @@ The site is statically generated and deployed to GitHub Pages.
 - [Astro 5](https://astro.build/) — static-site framework
 - [Tailwind CSS v4](https://tailwindcss.com/) via `@tailwindcss/vite`
 - [Zod](https://zod.dev/) — runtime schema for exhibit data
+- [vgpu](https://vgpu.sh) — WebGPU runtime behind the animated GPU scenes
 - [Vitest](https://vitest.dev/) — unit tests
 - [Playwright](https://playwright.dev/) — end-to-end tests
+
+## GPU-accelerated visuals (vgpu)
+
+Exhibits can carry two classes of GPU visuals:
+
+- **`gpu-scene`** — a live WebGPU animation via [vgpu](https://vgpu.sh). The
+  Qdrant exhibit renders its HNSW graph as an animated layered point field: a
+  static SVG storyboard is server-rendered first, then the canvas fades in
+  when the browser exposes WebGPU and the visitor has not requested reduced
+  motion. Without WebGPU (or with `prefers-reduced-motion`), the static
+  storyboard remains — nothing breaks, nothing flickers.
+- **Telemetry kinds** — `gpu-metrics` (VRAM / utilization / power / temp
+  snapshot), `time-series` (multi-series line chart), `index-stats`, and
+  `query-plan` are server-rendered SVG/HTML with no client JavaScript.
+
+See [docs/vgpu-visuals.md](docs/vgpu-visuals.md) for the mount contract,
+shader layout, and how to add a new scene.
 
 ## Run locally
 
@@ -23,6 +41,11 @@ The site is statically generated and deployed to GitHub Pages.
 pnpm install
 pnpm run dev          # http://localhost:4321
 ```
+
+> **pnpm ≥ 10 note:** local installs may prompt to approve dependency build
+> scripts (`@vgpu/adapter-node`, `webgpu`, `esbuild`). The approvals are
+> already recorded in `pnpm-workspace.yaml` (`allowBuilds`), so a plain
+> `pnpm install` is enough. CI pins pnpm 9, which ignores that field.
 
 ## Build for deploy
 
@@ -34,7 +57,7 @@ pnpm run preview      # serves dist/ locally
 ## Test
 
 ```bash
-pnpm run test:unit          # vitest, schema validation
+pnpm run test:unit          # vitest, schema + registry validation
 pnpm run test:e2e           # playwright, requires `pnpm run preview` running
 ```
 
@@ -54,17 +77,22 @@ SITE_BASE=/ SITE_URL=https://yourname.github.io pnpm run build
 ```
 src/
 ├── components/
-│   ├── diagrams/         # SVG diagram components (Astro)
+│   ├── diagrams/         # legacy SVG diagram components (Astro)
+│   ├── visuals/          # visual-system components, one per kind
+│   │   └── VisualModuleRenderer.astro  # mounts any visual by kind
 │   ├── ExhibitCard.astro
+│   ├── GalleryFilter.astro
 │   ├── SiteHeader.astro
 │   └── SiteFooter.astro
 ├── data/
-│   └── exhibits/         # Plain-TS exhibit data (one file per database)
+│   └── exhibits/         # plain-TS exhibit data (one file per database)
 ├── layouts/
 │   └── BaseLayout.astro
 ├── lib/
-│   ├── schema.ts         # Zod schema + DatabaseEntry type
-│   └── exhibits.ts       # load + iterate exhibits
+│   ├── schema.ts         # Zod schema + DatabaseEntry + Visual union
+│   ├── exhibits.ts       # load + iterate exhibits
+│   ├── visuals.ts        # kind -> renderer registry
+│   └── visuals-legacy.ts # legacy diagram component shim
 ├── pages/
 │   ├── index.astro
 │   ├── gallery.astro
@@ -74,8 +102,7 @@ src/
 └── styles/
     └── global.css        # Tailwind v4 + design tokens
 tests/
-├── unit/
-│   └── schema.test.ts
+├── unit/                 # schema, filter, visual registry
 └── e2e/
     └── smoke.spec.ts
 ```
