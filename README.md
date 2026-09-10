@@ -16,7 +16,6 @@ The site is statically generated and deployed to GitHub Pages.
 - [Zod](https://zod.dev/) — runtime schema for exhibit data
 - [vgpu](https://vgpu.sh) — WebGPU runtime behind the animated GPU scenes
 - [Vitest](https://vitest.dev/) — unit tests
-- [Playwright](https://playwright.dev/) — end-to-end tests
 
 ## GPU-accelerated visuals (vgpu)
 
@@ -28,6 +27,11 @@ Exhibits can carry two classes of GPU visuals:
   when the browser exposes WebGPU and the visitor has not requested reduced
   motion. Without WebGPU (or with `prefers-reduced-motion`), the static
   storyboard remains — nothing breaks, nothing flickers.
+- **`gpu-flow` layer** — the data diagrams themselves are vgpu-accelerated:
+  pipeline and WAL-timeline diagrams mount a WebGPU packet-flow canvas
+  beneath their SVG, so data packets stream through the engine stages when
+  WebGPU is available. The SVG stays authoritative; without WebGPU or with
+  reduced motion the static diagram is the whole story.
 - **Telemetry kinds** — `gpu-metrics` (VRAM / utilization / power / temp
   snapshot), `time-series` (multi-series line chart), `index-stats`, and
   `query-plan` are server-rendered SVG/HTML with no client JavaScript.
@@ -57,8 +61,8 @@ pnpm run preview      # serves dist/ locally
 ## Test
 
 ```bash
-pnpm run test:unit          # vitest, schema + registry validation
-pnpm run test:e2e           # playwright, requires `pnpm run preview` running
+pnpm run test:unit    # vitest, schema + registry validation
+pnpm run test:e2e     # browser layout + smoke checks (CI runs these; needs `pnpm run preview` locally)
 ```
 
 ## Deploy
