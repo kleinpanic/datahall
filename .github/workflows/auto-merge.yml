@@ -22,9 +22,13 @@ jobs:
         run: |
           set -uo pipefail
           for pr in $(gh pr list --state open --limit 50 --json number,author \
-              --jq '.[] | select(.author.login == "dependabot[bot]" or .author.login == "datahall-dev" or .author.login == "kleinpanic" or .author.login == "app/github-actions") | .number'); do
+              --jq '.[] | select(.author.login == "app/dependabot" or .author.login == "dependabot[bot]" or .author.login == "datahall-dev" or .author.login == "kleinpanic" or .author.login == "app/github-actions") | .number'); do
             echo "::group::PR $pr"
-            if gh pr checks "$pr" --required > /dev/null 2>&1; then
+            # Plain checks (not --required): with no branch protection there are
+            # no required checks, and `--required` exits 1 with "no required
+            # checks reported" forever. Plain exit codes: 0=all green,
+            # 1=failed, 8=pending.
+            if gh pr checks "$pr" > /dev/null 2>&1; then
               echo "checks green, merging #$pr"
               gh pr merge "$pr" --squash --delete-branch || echo "merge failed (conflicts?) skipping"
             else
