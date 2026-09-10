@@ -17,7 +17,7 @@ jobs:
     if: github.repository == 'kleinpanic/datahall'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: scripts/repo-hygiene.sh
         env:
           GH_TOKEN: ${{ github.token }}
