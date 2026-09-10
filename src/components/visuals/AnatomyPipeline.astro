@@ -4,10 +4,15 @@
  * paths. Stages are data-driven so SQLite, PostgreSQL, MariaDB, LanceDB,
  * and Qdrant can each describe their anatomy with the same visual grammar.
  *
+ * Label and detail text is wrapped to the stage column width (word wrap with
+ * a mono char-width estimate) so adjacent stages never collide, and the
+ * layout widens for 6+ stage pipelines. Box height grows with line counts.
+ *
  * Honors prefers-reduced-motion by suppressing the highlight pulse (the
  * `dh-pulse` class is a no-op under reduced-motion per global.css).
  */
 import type { VisualPipeline } from '../../lib/schema';
+import GpuFlow from './GpuFlow.astro';
 
 interface Props {
   visual: VisualPipeline;
@@ -160,6 +165,10 @@ const COLOR_BY_CATEGORY: Record<Stage['category'], string> = {
 const key = visual.database && visual.mode ? `${visual.database}:${visual.mode}` : visual.mode;
 const preset = PIPELINE_PRESETS[key] ?? PIPELINE_PRESETS[visual.mode] ?? [];
 
+/** Deterministic seed from the preset key so each diagram's flow is stable. */
+let flowSeed = 7;
+for (const ch of key) flowSeed = (flowSeed * 31 + ch.charCodeAt(0)) % 997;
+
 const stages =
   preset.length > 0
     ? preset
@@ -168,130 +177,211 @@ const stages =
         { id: 'q', label: 'stage 2', detail: 'placeholder', category: 'storage' as const },
       ];
 
-const layoutWidth = 720;
-const layoutHeight = 220;
-const stageWidth = (layoutWidth - 40) / stages.length;
-const centerY = 110;
+/* ------------------------------------------------------------------ */
+/* Layout: wrap text to the stage column so neighbors never collide.  */
+/* ------------------------------------------------------------------ */
+
+/** Approximate mono glyph width as a fraction of font size. */
+const CHAR_W = 0.625;
+
+function wrap(text: string, maxWidth: number, fontSize: number, maxLines: number): string[] {
+  const maxChars = Math.max(6, Math.floor(maxWidth / (fontSize * CHAR_W)));
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let cur = '';
+  for (const w of words) {
+    const candidate = cur ? `${cur} ${w}` : w;
+    if (candidate.length <= maxChars) {
+      cur = candidate;
+      continue;
+    }
+    if (cur) lines.push(cur);
+    if (w.length > maxChars) {
+      let rest = w;
+      while (rest.length > maxChars) {
+        lines.push(rest.slice(0, maxChars));
+        rest = rest.slice(maxChars);
+      }
+      cur = rest;
+    } else {
+      cur = w;
+    }
+  }
+  if (cur) lines.push(cur);
+  if (lines.length > maxLines) {
+    const kept = lines.slice(0, maxLines);
+    kept[maxLines - 1] = kept[maxLines - 1] + '\u2026';
+    return kept;
+  }
+  return lines;
+}
+
+const PAD = 20;
+/** Widen the canvas for long pipelines so per-stage text has room. */
+const layoutWidth = stages.length >= 6 ? 940 : 720;
+const stageWidth = (layoutWidth - PAD * 2) / Math.max(stages.length, 1);
+const textW = stageWidth - 20;
+
+const LABEL_FS = 11;
+const CAT_FS = 9;
+const DETAIL_FS = 9;
+const LABEL_LH = 14;
+const DETAIL_LH = 12;
+
+const wrapped = stages.map((stage) => ({
+  ...stage,
+  labelLines: wrap(stage.label, textW, LABEL_FS, 3),
+  detailLines: wrap(stage.detail, textW, DETAIL_FS, 3),
+}));
+
+const maxLabelLines = Math.max(...wrapped.map((s) => s.labelLines.length), 1);
+const maxDetailLines = Math.max(...wrapped.map((s) => s.detailLines.length), 1);
+
+const boxY = 14;
+const boxH = Math.max(64, 22 + maxLabelLines * LABEL_LH + 15 + maxDetailLines * DETAIL_LH);
+const layoutHeight = boxY + boxH + 44;
+const centerY = boxY + boxH / 2;
+
+const positioned = wrapped.map((stage, idx) => {
+  const x = PAD + idx * stageWidth;
+  const cx = x + stageWidth / 2;
+  const fill = COLOR_BY_CATEGORY[stage.category];
+  const labelY0 = boxY + 20;
+  const catY = labelY0 + (maxLabelLines - 1) * LABEL_LH + 16;
+  const detailY0 = catY + 14;
+  return { stage, x, cx, fill, labelY0, catY, detailY0 };
+});
 ---
 
-<svg
-  viewBox={`0 0 ${layoutWidth} ${layoutHeight}`}
-  role="img"
-  aria-label={`Pipeline for ${visual.title}`}
-  class="h-auto w-full"
-  data-pipeline-mode={visual.mode}
-  data-pipeline-database={visual.database}
->
-  <defs>
-    <marker
-      id="dh-pipe-arrow"
-      viewBox="0 0 10 10"
-      refX="8"
-      refY="5"
-      markerWidth="6"
-      markerHeight="6"
-      orient="auto"
-    >
-      <path d="M0,0 L10,5 L0,10 z" fill="#8b95a7"></path>
-    </marker>
-  </defs>
+<GpuFlow stages={stages.length} seed={flowSeed}>
+  <svg
+    viewBox={`0 0 ${layoutWidth} ${layoutHeight}`}
+    role="img"
+    aria-label={`Pipeline for ${visual.title}`}
+    class="h-auto w-full"
+    data-pipeline-mode={visual.mode}
+    data-pipeline-database={visual.database}
+  >
+    <defs>
+      <marker
+        id="dh-pipe-arrow"
+        viewBox="0 0 10 10"
+        refX="8"
+        refY="5"
+        markerWidth="6"
+        markerHeight="6"
+        orient="auto"
+      >
+        <path d="M0,0 L10,5 L0,10 z" fill="#8b95a7"></path>
+      </marker>
+    </defs>
 
-  {/* stage boxes */}
-  {
-    stages.map((stage, idx) => {
-      const x = 20 + idx * stageWidth;
-      const fill = COLOR_BY_CATEGORY[stage.category];
-      return (
-        <g
-          data-node-title={`${stage.label} — ${stage.detail} (category: ${stage.category})`}
-          tabindex="0"
-          role="button"
-          aria-label={`${stage.label}: ${stage.detail}`}
-        >
-          <rect
-            x={x + 8}
-            y={centerY - 36}
-            width={stageWidth - 16}
-            height={72}
-            rx={8}
-            fill={`${fill}22`}
-            stroke={fill}
+    {/* stage boxes */}
+    {
+      positioned.map((pos) => {
+        const { stage, x, cx, fill, labelY0, catY, detailY0 } = pos;
+        return (
+          <g
+            data-node-title={`${stage.label} — ${stage.detail} (category: ${stage.category})`}
+            tabindex="0"
+            role="button"
+            aria-label={`${stage.label}: ${stage.detail}`}
+          >
+            <rect
+              x={x + 8}
+              y={boxY}
+              width={stageWidth - 16}
+              height={boxH}
+              rx={8}
+              fill={`${fill}22`}
+              stroke={fill}
+              stroke-width="1.5"
+            />
+            <text
+              x={cx}
+              y={labelY0}
+              text-anchor="middle"
+              fill={fill}
+              font-size={LABEL_FS}
+              font-family="ui-monospace, monospace"
+            >
+              {stage.labelLines.map((ln, j) => (
+                <tspan x={cx} dy={j === 0 ? 0 : LABEL_LH}>
+                  {ln}
+                </tspan>
+              ))}
+            </text>
+            <text
+              x={cx}
+              y={catY}
+              text-anchor="middle"
+              fill="#8b95a7"
+              font-size={CAT_FS}
+              font-family="ui-monospace, monospace"
+            >
+              {stage.category}
+            </text>
+            <text
+              x={cx}
+              y={detailY0}
+              text-anchor="middle"
+              fill="#8b95a7"
+              font-size={DETAIL_FS}
+              font-family="ui-monospace, monospace"
+            >
+              {stage.detailLines.map((ln, j) => (
+                <tspan x={cx} dy={j === 0 ? 0 : DETAIL_LH}>
+                  {ln}
+                </tspan>
+              ))}
+            </text>
+          </g>
+        );
+      })
+    }
+
+    {/* arrows between stages */}
+    {
+      stages.slice(0, -1).map((_, k) => {
+        const x1 = PAD + k * stageWidth + stageWidth - 8;
+        const x2 = PAD + (k + 1) * stageWidth + 8;
+        return (
+          <line
+            x1={x1}
+            y1={centerY}
+            x2={x2 - 6}
+            y2={centerY}
+            stroke="#8b95a7"
             stroke-width="1.5"
+            stroke-dasharray="4 3"
+            marker-end="url(#dh-pipe-arrow)"
+            class="dh-pulse"
           />
-          <text
-            x={x + stageWidth / 2}
-            y={centerY - 14}
-            text-anchor="middle"
-            fill={fill}
-            font-size="13"
-            font-family="ui-monospace, monospace"
-          >
-            {stage.label}
-          </text>
-          <text
-            x={x + stageWidth / 2}
-            y={centerY + 6}
-            text-anchor="middle"
-            fill="#8b95a7"
-            font-size="10"
-            font-family="ui-monospace, monospace"
-          >
-            {stage.category}
-          </text>
-          <text
-            x={x + stageWidth / 2}
-            y={centerY + 22}
-            text-anchor="middle"
-            fill="#8b95a7"
-            font-size="9"
-            font-family="ui-monospace, monospace"
-          >
-            {stage.detail}
-          </text>
-        </g>
-      );
-    })
-  }
+        );
+      })
+    }
 
-  {/* arrows between stages */}
-  {
-    stages.slice(0, -1).map((_, idx) => {
-      const x1 = 20 + idx * stageWidth + stageWidth - 8;
-      const x2 = 20 + (idx + 1) * stageWidth + 8;
-      return (
-        <line
-          x1={x1}
-          y1={centerY}
-          x2={x2 - 6}
-          y2={centerY}
-          stroke="#8b95a7"
-          stroke-width="1.5"
-          stroke-dasharray="4 3"
-          marker-end="url(#dh-pipe-arrow)"
-          class="dh-pulse"
-        />
-      );
-    })
-  }
-
-  {/* mode badge */}
-  <g>
-    <rect
-      x={20}
-      y={layoutHeight - 32}
-      width={stageWidth - 16}
-      height={20}
-      rx={10}
-      fill="transparent"
-      stroke="var(--color-border)"
-      stroke-width="1"></rect>
-    <text
-      x={20 + (stageWidth - 16) / 2}
-      y={layoutHeight - 18}
-      text-anchor="middle"
-      fill="#8b95a7"
-      font-size="10"
-      font-family="ui-monospace, monospace">mode: {visual.mode}</text
-    >
-  </g>
-</svg>
+    {/* mode badge */}
+    <g>
+      <rect
+        x={PAD}
+        y={layoutHeight - 32}
+        width={stageWidth - 16}
+        height={20}
+        rx={10}
+        fill="transparent"
+        stroke="var(--color-border)"
+        stroke-width="1"></rect>
+      <text
+        x={PAD + (stageWidth - 16) / 2}
+        y={layoutHeight - 18}
+        text-anchor="middle"
+        fill="#8b95a7"
+        font-size="10"
+        font-family="ui-monospace, monospace"
+      >
+        mode: {visual.mode}
+      </text>
+    </g>
+  </svg>
+</GpuFlow>

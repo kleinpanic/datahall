@@ -1,7 +1,8 @@
 # vGPU Visual System
 
-datahall's GPU story has two halves: a live WebGPU animation runtime
-([vgpu](https://vgpu.sh)) and a set of static telemetry visuals. Both are
+datahall's GPU story has three halves: a live WebGPU animation runtime
+([vgpu](https://vgpu.sh)) for full scenes, a WebGPU flow layer that augments
+otherwise-static data diagrams, and a set of static telemetry visuals. All are
 driven by plain data in the exhibit files — no visual requires a hand-built
 asset.
 
@@ -35,6 +36,53 @@ query marker orbits on a Lissajous path computed on the CPU.
 | `seed`       | number          | shared by the TS storyboard and the WGSL hash       |
 | `fps`        | number (≥ 8)    | frame-loop cap                                      |
 | `sourceRefs` | `SourceRef[]`   | provenance; asserted present by the unit test suite |
+
+## gpu-flow: WebGPU packet flow beneath data diagrams
+
+`GpuFlow.astro` is a **slot wrapper**, not a visual kind: it wraps an existing
+diagram component's SVG so the data diagrams themselves get vgpu-accelerated.
+It currently backs `AnatomyPipeline.astro` (read/write/crash pipelines for
+SQLite, PostgreSQL, MariaDB, LanceDB, Qdrant) and `WalTimeline.astro`
+(durability timelines).
+
+1. **Server:** the diagram renders exactly as before — the SVG sits on top
+   (`z-10`) and is the complete, accessible content. A `<canvas>` sits beneath
+   it (`z-0`, `opacity-0`, `aria-hidden`).
+2. **Client:** the boot script attaches to `[data-gpu-flow]` mounts only when
+   `navigator.gpu` exists and reduced motion is **not** requested. The canvas
+   fades in and renders two passes:
+   - a backdrop shader — panel-dark vignette + faint grid + pulsing vertical
+     gate lines at each stage boundary (`stages` uniform), and
+   - an instanced packet field — ~140 data packets streaming left-to-right in
+     lanes, tinted per stage segment (teal / violet / amber / rose),
+     brightening as they cross a gate, deterministic per diagram `seed`.
+3. Without WebGPU or with reduced motion the canvas never becomes visible and
+   the static diagram is the whole story — no content ever depends on the GPU.
+
+Because stage boxes are drawn with ~13% alpha fills, the packets remain
+visible _through_ the boxes: the flow reads as data moving through the engine
+stages rather than past them.
+
+### Mount contract
+
+| attribute       | meaning                                     |
+| --------------- | ------------------------------------------- |
+| `data-gpu-flow` | marks the mount; boot script scans for it   |
+| `data-stages`   | stage/column count → gate spacing + tinting |
+| `data-seed`     | deterministic per-diagram hash seed         |
+| `data-fps`      | frame-loop cap (default 30)                 |
+
+### Wrapping another diagram
+
+```astro
+<GpuFlow stages={columns.length} seed={stableSeedFromKey}>
+  <svg ...>...</svg>
+</GpuFlow>
+```
+
+Keep the SVG as the root content (role="img", aria-label) and compute the seed
+from a stable string (e.g. the preset key) so server and client agree across
+rebuilds.
 
 ## Telemetry kinds (server-rendered, zero client JS)
 
