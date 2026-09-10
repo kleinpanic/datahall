@@ -16,6 +16,10 @@ export const VISUAL_KINDS = [
   'family-map',
   'legend',
   'gpu-scene',
+  'gpu-metrics',
+  'time-series',
+  'index-stats',
+  'query-plan',
 ] as const;
 
 export type RegisteredVisualKind = (typeof VISUAL_KINDS)[number];

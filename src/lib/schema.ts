@@ -203,6 +203,74 @@ const VisualVectorIndex = z.object({
   sourceRefs: z.array(SourceRef).max(6).optional(),
 });
 
+/** GPU metrics snapshot (VRAM, utilization, power, temp) for exhibits that run on accelerators. */
+const VisualGpuMetrics = z.object({
+  kind: z.literal('gpu-metrics'),
+  title: z.string().min(1).max(120),
+  description: z.string().min(1).max(300),
+  vram: z.object({ free: z.number(), used: z.number(), total: z.number() }).optional(),
+  utilization: z.number().min(0).max(100).optional(),
+  powerW: z.number().min(0).optional(),
+  temperatureC: z.number().min(0).optional(),
+  caption: z.string().max(280).optional(),
+  concepts: z.array(z.string().min(1).max(80)).max(12).optional(),
+  sourceRefs: z.array(SourceRef).max(6).optional(),
+});
+
+/** Time-series metrics (ops/s, latency, throughput over time). */
+const VisualTimeSeries = z.object({
+  kind: z.literal('time-series'),
+  title: z.string().min(1).max(120),
+  description: z.string().min(1).max(300),
+  series: z
+    .array(
+      z.object({
+        name: z.string(),
+        points: z.array(z.object({ t: z.number(), v: z.number() })),
+      }),
+    )
+    .min(1)
+    .max(4),
+  unit: z.string().default('ops/s'),
+  caption: z.string().max(280).optional(),
+  concepts: z.array(z.string().min(1).max(80)).max(12).optional(),
+  sourceRefs: z.array(SourceRef).max(6).optional(),
+});
+
+/** Index statistics (levels, fanout, cardinality, selectivity). */
+const VisualIndexStats = z.object({
+  kind: z.literal('index-stats'),
+  title: z.string().min(1).max(120),
+  description: z.string().min(1).max(300),
+  levels: z
+    .array(z.object({ level: z.number(), nodes: z.number(), fanout: z.number() }))
+    .optional(),
+  cardinality: z.number().optional(),
+  selectivity: z.number().min(0).max(1).optional(),
+  caption: z.string().max(280).optional(),
+  concepts: z.array(z.string().min(1).max(80)).max(12).optional(),
+  sourceRefs: z.array(SourceRef).max(6).optional(),
+});
+
+/** Query plan / execution breakdown. */
+const VisualQueryPlan = z.object({
+  kind: z.literal('query-plan'),
+  title: z.string().min(1).max(120),
+  description: z.string().min(1).max(300),
+  steps: z
+    .array(
+      z.object({
+        step: z.string(),
+        cost: z.number().optional(),
+        rows: z.number().optional(),
+      }),
+    )
+    .min(1),
+  caption: z.string().max(280).optional(),
+  concepts: z.array(z.string().min(1).max(80)).max(12).optional(),
+  sourceRefs: z.array(SourceRef).max(6).optional(),
+});
+
 /** Museum-lobby database family map. Used on the homepage and as a wide visual on each exhibit. */
 const VisualFamilyMap = z.object({
   kind: z.literal('family-map'),
@@ -282,6 +350,10 @@ export const Visual = z.discriminatedUnion('kind', [
   VisualFamilyMap,
   VisualLegend,
   VisualGpuScene,
+  VisualGpuMetrics,
+  VisualTimeSeries,
+  VisualIndexStats,
+  VisualQueryPlan,
 ]);
 export type Visual = z.infer<typeof Visual>;
 export type VisualKind = Visual['kind'];
@@ -294,6 +366,10 @@ export type VisualVectorIndex = z.infer<typeof VisualVectorIndex>;
 export type VisualFamilyMap = z.infer<typeof VisualFamilyMap>;
 export type VisualLegend = z.infer<typeof VisualLegend>;
 export type VisualGpuScene = z.infer<typeof VisualGpuScene>;
+export type VisualGpuMetrics = z.infer<typeof VisualGpuMetrics>;
+export type VisualTimeSeries = z.infer<typeof VisualTimeSeries>;
+export type VisualIndexStats = z.infer<typeof VisualIndexStats>;
+export type VisualQueryPlan = z.infer<typeof VisualQueryPlan>;
 
 /* ----------------------------------------------------------------------- */
 /*  Database entry                                                          */

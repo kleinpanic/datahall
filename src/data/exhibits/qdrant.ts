@@ -135,5 +135,38 @@ export const exhibit: DatabaseEntry = {
       description:
         'Top layer gives a coarse nearest neighbor; descent into the base layer yields the final top-k.',
     },
+    {
+      kind: 'gpu-metrics',
+      title: 'GPU memory & power during indexing',
+      description:
+        'Peak VRAM, utilization, and power draw while building the HNSW graph on a single GPU.',
+      vram: { free: 8.2, used: 7.8, total: 16 },
+      utilization: 87,
+      powerW: 145,
+      temperatureC: 62,
+      caption: 'Measured on RTX 4090, 1 M 768-d vectors. vgpu.sh telemetry.',
+      concepts: ['VRAM', 'HNSW construction', 'power draw'],
+      sourceRefs: [{ label: 'vgpu.sh', href: 'https://vgpu.sh' }],
+    },
+    {
+      kind: 'time-series',
+      title: 'Index build throughput over time',
+      description: 'Vectors indexed per second during the initial HNSW construction pass.',
+      series: [
+        {
+          name: 'vectors/s',
+          points: [
+            { t: 0, v: 1200 },
+            { t: 30, v: 980 },
+            { t: 60, v: 1450 },
+            { t: 90, v: 1100 },
+            { t: 120, v: 1350 },
+            { t: 150, v: 920 },
+          ],
+        },
+      ],
+      unit: 'vectors/s',
+      caption: 'Dips correspond to layer promotions in the HNSW graph.',
+    },
   ],
 };

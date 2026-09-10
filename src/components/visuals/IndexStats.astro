@@ -1,0 +1,93 @@
+---
+/**
+ * IndexStats -- B-tree / index shape visualization.
+ * Renders per-level node counts as proportional bars plus cardinality and
+ * selectivity stat cards. Server-rendered only; no client JavaScript.
+ */
+import type { VisualIndexStats } from '../../lib/schema';
+
+interface Props {
+  visual: VisualIndexStats;
+}
+const { visual } = Astro.props;
+
+const levels = visual.levels ?? [];
+const maxNodes = Math.max(...levels.map((l) => l.nodes), 1);
+
+const fmt = (n: number): string =>
+  Math.abs(n) >= 1_000_000
+    ? `${(n / 1_000_000).toFixed(1)}M`
+    : Math.abs(n) >= 1000
+      ? `${(n / 1000).toFixed(1)}k`
+      : `${Math.round(n * 10) / 10}`;
+
+const cardinality = visual.cardinality;
+const selectivity = visual.selectivity;
+const hasStats = cardinality !== undefined || selectivity !== undefined;
+const isEmpty = levels.length === 0 && !hasStats;
+---
+
+<div>
+  <p class="mb-3 text-xs text-[var(--color-fg-muted)]">{visual.description}</p>
+  {
+    levels.length > 0 && (
+      <div class="mb-4 space-y-1.5">
+        {levels.map((l) => (
+          <div class="flex items-center gap-3">
+            <span class="w-7 shrink-0 font-mono text-[10px] text-[var(--color-fg-muted)]">
+              L{l.level}
+            </span>
+            <div class="h-3 flex-1 overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-bg-card)]">
+              <div
+                class="h-3"
+                style={`width:${Math.max(2, (l.nodes / maxNodes) * 100)}%;background:var(--color-accent-dim)`}
+              />
+            </div>
+            <span class="w-44 shrink-0 text-right font-mono text-[10px] text-[var(--color-fg-muted)]">
+              {fmt(l.nodes)} nodes{l.fanout > 1 ? ` \u00b7 \u00d7${l.fanout}` : ''}
+            </span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+  {
+    hasStats && (
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {cardinality !== undefined && (
+          <div class="rounded border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
+            <div class="text-[10px] tracking-widest text-[var(--color-fg-muted)] uppercase">
+              Cardinality
+            </div>
+            <div class="font-mono text-lg text-[var(--color-fg)]">{fmt(cardinality)}</div>
+            <div class="mt-1 text-[10px] text-[var(--color-fg-muted)]">distinct indexed values</div>
+          </div>
+        )}
+        {selectivity !== undefined && (
+          <div class="rounded border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
+            <div class="text-[10px] tracking-widest text-[var(--color-fg-muted)] uppercase">
+              Selectivity
+            </div>
+            <div class="font-mono text-lg text-[var(--color-fg)]">
+              {(selectivity * 100).toFixed(1)}%
+            </div>
+            <div class="mt-1 h-2 overflow-hidden rounded bg-[var(--color-bg-card)]">
+              <div
+                class="h-2 rounded bg-[var(--color-accent)]"
+                style={`width:${selectivity * 100}%`}
+              />
+            </div>
+            <div class="mt-1 text-[10px] text-[var(--color-fg-muted)]">
+              fraction of rows matching a predicate
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+  {
+    isEmpty && (
+      <p class="font-mono text-xs text-[var(--color-fg-muted)]">no index statistics provided</p>
+    )
+  }
+</div>
