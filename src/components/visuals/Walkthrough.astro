@@ -93,6 +93,16 @@ const colRowPass = col.passingRows;
 const toPx = (nx: number, ny: number, w = W, h = H) => ({ x: nx * w, y: ny * h });
 ---
 
+<style>
+  /* Chromium keeps closed-<details> children at computed display: list-item
+     (content-visibility hiding), which gives their boxes real layout rects —
+     the step list would ghost into overlap checks and page flow. Force real
+     display: none until the reader opens it. */
+  details:not([open]) > *:not(summary) {
+    display: none;
+  }
+</style>
+
 <div class="dh-walkthrough" data-wt-panel data-trace={JSON.stringify(trace)}>
   <div class="overflow-hidden rounded-lg border border-[var(--color-border)] bg-[#0a0e13] p-2">
     <svg
@@ -930,9 +940,6 @@ const toPx = (nx: number, ny: number, w = W, h = H) => ({ x: nx * w, y: ny * h }
             ))}
             <g data-wt="wt-col-prune">
               <rect x={225} y={30} width={140} height={254} rx={6} fill="#0a0e13" opacity="0.72" />
-              <text x={232} y={300} fill="#ff5d8f" font-size="10">
-                user_id: never read
-              </text>
             </g>
             {!alt && (
               <g data-wt="wt-col-skip">
@@ -941,9 +948,6 @@ const toPx = (nx: number, ny: number, w = W, h = H) => ({ x: nx * w, y: ny * h }
                     skip
                   </text>
                 ))}
-                <text x={18} y={40} fill="#8b95a7" font-size="9">
-                  day range
-                </text>
               </g>
             )}
             <g data-wt="wt-col-read">
