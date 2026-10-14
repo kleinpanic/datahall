@@ -109,6 +109,31 @@ esbuild, webgpu`), so `pnpm install` just works; CI pins pnpm 9, which
   without WebGPU. To verify the animated path, check that the `<canvas>`
   inside `[data-gpu-scene]` reaches non-zero opacity.
 
+## The shared mount controller (`lib/vgpu-runtime.ts`)
+
+Every GPU mount (gpu-scene, gpu-flow, the HNSW playground) boots through
+`mountGpuScene()`, which guarantees per mount:
+
+- **Deferred boot** — pipelines are built only when the mount is within
+  ~160 px of the viewport (IntersectionObserver).
+- **First-frame verification** — the readable fallback stays until the first
+  submitted frame resolves its `Frame.done` promise; only then does the
+  canvas fade in and `data-gpu-state` become `on`.
+- **Failure semantics** — `data-gpu-state` is `off` (unsupported or
+  reduced-motion), `error`, or `device-lost`; the static content is restored
+  in every case. A device loss triggers one automatic re-boot on a fresh
+  shared context.
+- **Reduced motion is live** — a `prefers-reduced-motion` change tears an
+  active mount down to its fallback (and re-boots when motion is re-enabled).
+- **Frame pacing** — encoding skips while the mount is off-screen or the tab
+  is hidden; fps and DPR are bounded by the mount contract.
+- **Cleanup** — loops, observers, listeners, and bloom render targets are
+  released when the mount leaves the DOM.
+
+Components only supply a `build()` callback (pipelines + bloom) and
+`onActive`/`onFallback` UI transitions; they never touch `init()` or `surface`
+lifecycle directly.
+
 ## Adding a new scene
 
 1. Extend the `VisualGpuScene` schema (`src/lib/schema.ts`) `scene` literal.
