@@ -1,6 +1,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import tailwindcss from '@tailwindcss/vite';
+import { wgslVitePlugin } from '@vgpu/wgsl/loader-vite';
 
 // GitHub Pages serves the site at the repo path. Override at build time with
 // SITE_BASE, e.g. `SITE_BASE=/ my-org/my-site pnpm build`. Default is the
@@ -15,7 +16,7 @@ export default defineConfig({
     format: 'directory',
   },
   vite: {
-    plugins: [tailwindcss()],
+    plugins: [tailwindcss(), wgslVitePlugin()],
   },
   redirects: {
     '/databases': '/gallery',

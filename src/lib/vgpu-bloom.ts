@@ -3,120 +3,33 @@
  *
  * https://vgpu.sh
  *
- * scene target (rgba16float) -> bright pass (half res) -> separable blur
- * -> downsample (quarter res) -> blur -> composite (scene + bloom,
- * ACES-ish tonemap, gentle vignette) onto the output surface. All taps
- * use textureLoad, so no samplers are involved; every pass is a vgpu
- * fullscreen effect bound to the previous target by name.
+ * scene target -> bright pass (half res) -> separable blur -> downsample
+ * (quarter res) -> blur -> composite (scene + bloom, ACES-ish tonemap,
+ * gentle vignette) onto the output surface. All taps use textureLoad, so
+ * no samplers are involved; every pass is a vgpu fullscreen effect bound
+ * to the previous target by name.
+ *
+ * The WGSL lives in real shader modules under src/wgsl/ and is turned into
+ * prepared `ShaderSource` artifacts at build time by `wgslVitePlugin`
+ * (see astro.config.mjs) -- the browser never loads the WGSL parser.
  */
 import type { Frame, Surface, Target } from 'vgpu';
 
 /** Texture format type without relying on ambient WebGPU globals in lib code. */
 type TextureFormat = Target['format'];
 import type { GpuContext, VgpuModule } from './vgpu-runtime';
+import brightShader from '../wgsl/bloom-bright.wgsl';
+import blurShader from '../wgsl/bloom-blur.wgsl';
+import downShader from '../wgsl/bloom-down.wgsl';
+import compositeShader from '../wgsl/bloom-composite.wgsl';
 
 // LDR bloom targets: rgba16float HDR chains crash software rasterizers
 // (SwiftShader/lavapipe) under multi-mount load; bgra8unorm keeps the look
 // at a fraction of the bandwidth.
 const HDR: TextureFormat = 'bgra8unorm';
 
-const BRIGHT_WGSL = /* wgsl */ `
-@group(0) @binding(0) var src_tex: texture_2d<f32>;
-
-@fragment
-fn fs_main(@builtin(position) pos: vec4f) -> @location(0) vec4f {
-  let sd = vec2i(textureDimensions(src_tex));
-  let c = vec2f(vec2i(pos.xy)) * 2.0;
-  var acc = vec3f(0.0);
-  for (var j = 0; j < 2; j = j + 1) {
-    for (var i = 0; i < 2; i = i + 1) {
-      let p = clamp(vec2i(c) + vec2i(i, j), vec2i(0), sd - vec2i(1));
-      acc = acc + textureLoad(src_tex, p, 0).rgb;
-    }
-  }
-  let col = acc * 0.25;
-  let l = dot(col, vec3f(0.299, 0.587, 0.114));
-  let w = smoothstep(0.42, 1.0, l);
-  return vec4f(col * w, 1.0);
-}
-`;
-
-const BLUR_WGSL = /* wgsl */ `
-@group(0) @binding(0) var src_tex: texture_2d<f32>;
-
-struct Params {
-  dirx: f32,
-  diry: f32,
-}
-@group(0) @binding(1) var<uniform> params: Params;
-
-@fragment
-fn fs_main(@builtin(position) pos: vec4f) -> @location(0) vec4f {
-  let sd = vec2i(textureDimensions(src_tex));
-  let p = vec2i(pos.xy);
-  let dir = vec2i(i32(params.dirx), i32(params.diry));
-  var acc = vec3f(0.0);
-  var wsum = 0.0;
-  for (var k = -4; k <= 4; k = k + 1) {
-    let q = clamp(p + dir * k, vec2i(0), sd - vec2i(1));
-    let w = exp(-0.125 * f32(k * k));
-    acc = acc + textureLoad(src_tex, q, 0).rgb * w;
-    wsum = wsum + w;
-  }
-  return vec4f(acc / wsum, 1.0);
-}
-`;
-
-const DOWN_WGSL = /* wgsl */ `
-@group(0) @binding(0) var src_tex: texture_2d<f32>;
-
-@fragment
-fn fs_main(@builtin(position) pos: vec4f) -> @location(0) vec4f {
-  let sd = vec2i(textureDimensions(src_tex));
-  let d = vec2i(pos.xy);
-  var acc = vec3f(0.0);
-  for (var j = 0; j < 2; j = j + 1) {
-    for (var i = 0; i < 2; i = i + 1) {
-      let p = clamp(d * 2 + vec2i(i, j), vec2i(0), sd - vec2i(1));
-      acc = acc + textureLoad(src_tex, p, 0).rgb;
-    }
-  }
-  return vec4f(acc * 0.25, 1.0);
-}
-`;
-
-const COMPOSITE_WGSL = /* wgsl */ `
-@group(0) @binding(0) var scene_tex: texture_2d<f32>;
-@group(0) @binding(1) var bloom1_tex: texture_2d<f32>;
-@group(0) @binding(2) var bloom2_tex: texture_2d<f32>;
-
-struct Params {
-  strength: f32,
-  time: f32,
-}
-@group(0) @binding(3) var<uniform> params: Params;
-
-@fragment
-fn fs_main(@builtin(position) pos: vec4f) -> @location(0) vec4f {
-  let sd = vec2i(textureDimensions(scene_tex));
-  let p = clamp(vec2i(pos.xy), vec2i(0), sd - vec2i(1));
-  let scene = textureLoad(scene_tex, p, 0).rgb;
-  let b1d = vec2i(textureDimensions(bloom1_tex));
-  let b1 = textureLoad(bloom1_tex, clamp(vec2i(pos.xy) / 2, vec2i(0), b1d - vec2i(1)), 0).rgb;
-  let b2d = vec2i(textureDimensions(bloom2_tex));
-  let b2 = textureLoad(bloom2_tex, clamp(vec2i(pos.xy) / 4, vec2i(0), b2d - vec2i(1)), 0).rgb;
-  let breathe = 0.92 + 0.08 * sin(params.time * 0.7);
-  var col = scene + (b1 * 0.85 + b2 * 1.15) * params.strength * breathe;
-  // ACES-ish filmic tonemap keeps the bloom from clipping harshly.
-  col = clamp((col * (2.51 * col + 0.03)) / (col * (2.43 * col + 0.59) + 0.14), vec3f(0.0), vec3f(1.0));
-  let uv = vec2f(pos.xy) / vec2f(sd);
-  let v = 1.0 - 0.22 * smoothstep(0.55, 1.05, distance(uv, vec2f(0.5)));
-  return vec4f(col * v, 1.0);
-}
-`;
-
 export interface BloomChain {
-  /** HDR target the scene content renders into (before post-processing). */
+  /** Target the scene content renders into (before post-processing). */
   readonly scene: Target;
   prewarm(outputFormat: TextureFormat): Promise<void>;
   resize(size: readonly [number, number]): void;
@@ -149,13 +62,13 @@ export function createBloomChain(
   const q1 = vgpu.target(gpu, { size: quarter(size), format: HDR }) as MutableTarget;
   const q2 = vgpu.target(gpu, { size: quarter(size), format: HDR }) as MutableTarget;
 
-  const bright = vgpu.effect(gpu, BRIGHT_WGSL);
-  const blurH1 = vgpu.effect(gpu, BLUR_WGSL);
-  const blurV1 = vgpu.effect(gpu, BLUR_WGSL);
-  const down = vgpu.effect(gpu, DOWN_WGSL);
-  const blurH2 = vgpu.effect(gpu, BLUR_WGSL);
-  const blurV2 = vgpu.effect(gpu, BLUR_WGSL);
-  const composite = vgpu.effect(gpu, COMPOSITE_WGSL);
+  const bright = vgpu.effect(gpu, brightShader);
+  const blurH1 = vgpu.effect(gpu, blurShader);
+  const blurV1 = vgpu.effect(gpu, blurShader);
+  const down = vgpu.effect(gpu, downShader);
+  const blurH2 = vgpu.effect(gpu, blurShader);
+  const blurV2 = vgpu.effect(gpu, blurShader);
+  const composite = vgpu.effect(gpu, compositeShader);
 
   // Textures bind by name (official vgpu pattern); blur direction is fixed per instance.
   bright.set({ src_tex: sceneT });

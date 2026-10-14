@@ -997,6 +997,7 @@ const toSvg = (nx: number, ny: number) => ({ x: nx * viewW, y: ny * viewH });
    */
   import { mountGpuScene } from '../../lib/vgpu-runtime';
   import { createBloomChain } from '../../lib/vgpu-bloom';
+  import { prepareShader } from '@vgpu/wgsl/prepare';
   import {
     buildHnsw,
     exactSearch,
@@ -1258,16 +1259,16 @@ const toSvg = (nx: number, ny: number) => ({ x: nx * viewW, y: ny * viewH });
       canvas,
       fps,
       build: async ({ vgpu, gpu, surface, clock }) => {
-        const bg = vgpu.effect(gpu, stash.bg, {
+        const bg = vgpu.effect(gpu, prepareShader(stash.bg), {
           set: { params: { time: 0, mx: -1, my: -1, hover: 0 } },
         });
         const edgeDraw = vgpu.draw(gpu, {
-          shader: stash.edges,
+          shader: prepareShader(stash.edges),
           instances: edgeCount,
           vertices: 6,
         });
         const nodeDraw = vgpu.draw(gpu, {
-          shader: stash.nodes,
+          shader: prepareShader(stash.nodes),
           instances: nodeCount,
           vertices: 6,
         });

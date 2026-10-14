@@ -101,6 +101,20 @@ telemetry); PostgreSQL ships `query-plan` + `index-stats`.
 
 ## Local development
 
+- vgpu is pinned to **0.6.0**. `effect()`/`draw()` take prepared `ShaderSource`
+  artifacts, not raw strings — raw strings throw `VGPU-SHADER-SOURCE-UNPREPARED`.
+- **Static shaders live in `src/wgsl/*.wgsl`** and are turned into artifacts at
+  build time by `wgslVitePlugin` (`astro.config.mjs`; typing via
+  `src/vgpu-env.d.ts`). The browser never loads the WGSL parser. Seed values
+  are uniforms (`params.seed`), so one pipeline serves every mount.
+- **Generated shaders** (the HNSW playground bakes graph constants into WGSL
+  server-side) are wrapped with `prepareShader()` from `@vgpu/wgsl/prepare`
+  once, before creating the effect.
+- **Headless GPU verification**: `pnpm test:gpu` renders the production
+  modules through `vgpu/node` (Dawn), asserts on pixels, and writes PNG
+  snapshots to `test-results/gpu/`. `npx vgpu doctor` checks the machine;
+  `npx vgpu check src/wgsl/<file>.wgsl` validates a shader on-device;
+  `VGPU_ADAPTER=software` forces deterministic CPU pixels.
 - pnpm ≥ 10 will ask to approve dependency build scripts. The approvals are
   committed in `pnpm-workspace.yaml` (`allowBuilds: @vgpu/adapter-node,
 esbuild, webgpu`), so `pnpm install` just works; CI pins pnpm 9, which
