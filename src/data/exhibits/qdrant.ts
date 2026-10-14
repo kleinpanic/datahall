@@ -137,24 +137,31 @@ export const exhibit: DatabaseEntry = {
     },
     {
       kind: 'gpu-metrics',
-      title: 'GPU memory & power during indexing',
+      title: 'GPU resources during indexing (illustrative)',
       description:
-        'Peak VRAM, utilization, and power draw while building the HNSW graph on a single GPU.',
+        'Example GPU resource values of the kind an index build reports: VRAM use, utilization, power, temperature. These numbers are illustrative — no benchmark was run for this exhibit.',
       vram: { free: 8.2, used: 7.8, total: 16 },
       utilization: 87,
       powerW: 145,
       temperatureC: 62,
-      caption: 'Measured on RTX 4090, 1 M 768-d vectors. vgpu.sh telemetry.',
-      concepts: ['VRAM', 'HNSW construction', 'power draw'],
-      sourceRefs: [{ label: 'vgpu.sh', href: 'https://vgpu.sh' }],
+      caption:
+        'Illustrative synthetic values, not measurements. vgpu.sh renders this page’s animations; it is not the source of these numbers.',
+      concepts: ['VRAM', 'HNSW construction', 'illustrative data'],
+      sourceRefs: [
+        {
+          label: 'Qdrant docs: Indexing (what index builds involve)',
+          href: 'https://qdrant.tech/documentation/concepts/indexing/',
+        },
+      ],
     },
     {
       kind: 'time-series',
-      title: 'Index build throughput over time',
-      description: 'Vectors indexed per second during the initial HNSW construction pass.',
+      title: 'Index build throughput, illustrative shape',
+      description:
+        'A synthetic vectors-per-second series showing the shape an HNSW bulk build might report. The values are illustrative, not measured.',
       series: [
         {
-          name: 'vectors/s',
+          name: 'vectors/s (illustrative)',
           points: [
             { t: 0, v: 1200 },
             { t: 30, v: 980 },
@@ -166,7 +173,8 @@ export const exhibit: DatabaseEntry = {
         },
       ],
       unit: 'vectors/s',
-      caption: 'Dips correspond to layer promotions in the HNSW graph.',
+      caption:
+        'Synthetic series — no benchmark was run, and no causal story (layer promotions or otherwise) should be read into the dips.',
     },
   ],
 };

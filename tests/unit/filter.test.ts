@@ -4,7 +4,7 @@ import { exhibits } from '~/lib/exhibits';
 
 describe('gallery filter', () => {
   it('returns all when no filter', () => {
-    expect(filterExhibits(exhibits, {})).toHaveLength(5);
+    expect(filterExhibits(exhibits, {})).toHaveLength(9);
   });
 
   it('filters by query on name/tagline', () => {

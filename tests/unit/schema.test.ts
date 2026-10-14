@@ -37,8 +37,8 @@ describe('DatabaseEntry schema', () => {
 });
 
 describe('exhibit corpus', () => {
-  it('contains exactly five exhibits', () => {
-    expect(exhibits).toHaveLength(5);
+  it('contains exactly nine exhibits', () => {
+    expect(exhibits).toHaveLength(9);
   });
 
   it('exposes unique slugs', () => {
@@ -46,9 +46,19 @@ describe('exhibit corpus', () => {
     expect(new Set(slugs).size).toBe(slugs.length);
   });
 
-  it('exposes the five expected slugs', () => {
+  it('exposes the nine expected slugs', () => {
     expect(new Set(exhibitSlugs())).toEqual(
-      new Set(['sqlite', 'postgresql', 'mariadb', 'lancedb', 'qdrant']),
+      new Set([
+        'sqlite',
+        'postgresql',
+        'mariadb',
+        'lancedb',
+        'qdrant',
+        'rocksdb',
+        'mongodb',
+        'neo4j',
+        'clickhouse',
+      ]),
     );
   });
 

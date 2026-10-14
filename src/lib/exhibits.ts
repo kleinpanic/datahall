@@ -14,8 +14,22 @@ import { exhibit as postgresql } from '../data/exhibits/postgresql';
 import { exhibit as mariadb } from '../data/exhibits/mariadb';
 import { exhibit as lancedb } from '../data/exhibits/lancedb';
 import { exhibit as qdrant } from '../data/exhibits/qdrant';
+import { exhibit as rocksdb } from '../data/exhibits/rocksdb';
+import { exhibit as mongodb } from '../data/exhibits/mongodb';
+import { exhibit as neo4j } from '../data/exhibits/neo4j';
+import { exhibit as clickhouse } from '../data/exhibits/clickhouse';
 
-const raw: ReadonlyArray<unknown> = [sqlite, postgresql, mariadb, lancedb, qdrant];
+const raw: ReadonlyArray<unknown> = [
+  sqlite,
+  postgresql,
+  mariadb,
+  lancedb,
+  qdrant,
+  rocksdb,
+  mongodb,
+  neo4j,
+  clickhouse,
+];
 
 const validated: ReadonlyArray<DatabaseEntry> = raw.map((entry, index) => {
   const result = DatabaseEntry.safeParse(entry);
