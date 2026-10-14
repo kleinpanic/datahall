@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { SITE_REPO } from '../consts';
+import { exhibitSlugs } from '../lib/exhibits';
 ---
 
 <BaseLayout title="About" description="What datahall is and isn't">
@@ -8,7 +9,7 @@ import { SITE_REPO } from '../consts';
     <p class="pill mb-4">About</p>
     <h1 class="display-heading mb-3 text-4xl">What this is</h1>
     <p>
-      <strong>datahall</strong> is a small static site that walks through the internals of five production
+      <strong>datahall</strong> is a small static site that walks through the internals of {exhibitSlugs().length} production
       databases. The goal is to make storage engines, transaction models, and index structures approachable
       for engineers who use these systems every day but rarely read their source.
     </p>
