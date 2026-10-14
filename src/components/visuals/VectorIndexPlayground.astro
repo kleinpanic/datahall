@@ -803,7 +803,7 @@ const toSvg = (nx: number, ny: number) => ({ x: nx * viewW, y: ny * viewH });
                 r={n.layer === 2 ? 8 : n.layer === 1 ? 6 : 4.5}
                 fill={color}
               />
-              {((isTopK || n.layer === graph.layers - 1) && (
+              {(isTopK || n.layer === graph.layers - 1) && (
                 <text
                   x={px.x + 10}
                   y={isTopK && n.id % 2 === 0 ? px.y + 16 : px.y - 8}
@@ -813,7 +813,7 @@ const toSvg = (nx: number, ny: number) => ({ x: nx * viewW, y: ny * viewH });
                 >
                   {n.id}
                 </text>
-              ))}
+              )}
             </g>
           );
         })
