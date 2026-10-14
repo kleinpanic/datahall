@@ -1,17 +1,40 @@
 ---
 /**
- * VectorIndexPlayground -- upgraded vector index schematic.
+ * VectorIndexPlayground -- vector index schematic, driven by a real toy search.
+ *
+ * Every highlight in this visual is derived from `src/lib/vector-search.ts`:
+ * a deterministic HNSW build over a 24-vector toy set, an instrumented
+ * SEARCH-layered trace, and a brute-force exact baseline for recall. Node
+ * identity is preserved across layers (the same vector id appears in every
+ * band it exists in). No highlight is preset and no result is decorative.
  *
  * Modes:
- *   - hnsw (default): layered graph with a top-down traversal path
- *   - ivf-pq: inverted file with product-quantization clusters
- *   - flat: brute-force over all vectors
+ *   - hnsw (default): layered graph; the static SVG renders the full trace
+ *     and the interactive step controls replay it. With WebGPU and no
+ *     reduced-motion, a vgpu canvas replays the same trace with bloom; the
+ *     step controls drive the GPU phase through a `stepPhase` uniform, so
+ *     SVG, counters, narration, and the GPU scene share one trace state.
+ *   - ivf-pq: coarse quantizer clusters (IVF). Probing the nearest cluster
+ *     and scanning it is shown against the exact baseline — data skipping
+ *     is the visible tradeoff. (Product quantization is the *compression*
+ *     half of IVF-PQ and is described in text, not drawn as clusters.)
+ *   - flat: brute-force scan = the exact baseline itself.
  *
- * `showPayloadFilter` overlays a payload filter bitmap (relevant for Qdrant
- * and LanceDB filtered queries). `showTopK` highlights the final top-k
- * neighborhood with a stronger ring.
+ * `showPayloadFilter` runs the trace with a payload predicate (id even) and
+ * models Qdrant's filtered HNSW behavior: the walk traverses non-matching
+ * nodes but only matching nodes can enter the result beam.
+ *
+ * Teaching-model caveats are printed on the visual (2D projection, toy scale).
  */
 import type { VisualVectorIndex } from '../../lib/schema';
+import {
+  buildHnsw,
+  exactSearch,
+  hnswSearch,
+  recall,
+  toyVectors,
+  type ToyVector,
+} from '../../lib/vector-search';
 
 interface Props {
   visual: VisualVectorIndex;
@@ -19,260 +42,1322 @@ interface Props {
 
 const { visual } = Astro.props;
 
-interface Point {
-  x: number;
-  y: number;
-  layer: 0 | 1 | 2;
-  id: number;
-  highlight?: boolean;
-}
-
-// 11 vectors arranged into 3 layers; some are highlighted as "top-k".
-const POINTS: Point[] = [
-  { id: 1, x: 110, y: 60, layer: 2 },
-  { id: 2, x: 540, y: 70, layer: 2, highlight: true },
-  { id: 3, x: 220, y: 150, layer: 1, highlight: true },
-  { id: 4, x: 380, y: 165, layer: 1 },
-  { id: 5, x: 520, y: 155, layer: 1, highlight: true },
-  { id: 6, x: 660, y: 160, layer: 1 },
-  { id: 7, x: 60, y: 270, layer: 0 },
-  { id: 8, x: 180, y: 290, layer: 0, highlight: true },
-  { id: 9, x: 320, y: 270, layer: 0 },
-  { id: 10, x: 460, y: 295, layer: 0, highlight: true },
-  { id: 11, x: 600, y: 275, layer: 0 },
-  { id: 12, x: 280, y: 245, layer: 0, highlight: true },
-];
-
-const edgesL2: Array<[number, number]> = [[1, 2]];
-const edgesL1: Array<[number, number]> = [
-  [3, 4],
-  [4, 5],
-  [5, 6],
-  [3, 1],
-  [5, 2],
-  [6, 2],
-];
-const edgesL0: Array<[number, number]> = [
-  [7, 8],
-  [8, 12],
-  [12, 9],
-  [9, 10],
-  [10, 11],
-  [7, 3],
-  [8, 3],
-  [10, 5],
-  [12, 4],
-];
+const HNSW_SEED = 4242;
+const POINT_COUNT = 24;
+const DEFAULT_K = 4;
+const DEFAULT_EF = 16;
+const FILTER = (id: number) => id % 2 === 0;
 
 const viewW = 720;
 const viewH = visual.mode === 'ivf-pq' ? 320 : 360;
 
 const isHnsw = visual.mode === 'hnsw';
 const isIvf = visual.mode === 'ivf-pq';
+
+const points: ToyVector[] = toyVectors(HNSW_SEED, POINT_COUNT);
+const useFilter = visual.showPayloadFilter;
+const defaultQuery = { x: 0.5, y: 0.42 };
+
+// ---------------------------------------------------------------------
+// Shared geometry: one normalized layout, two projections (SVG + GPU).
+// ---------------------------------------------------------------------
+
+/** Band centers/spreads in normalized coords (top layer first). */
+const BANDS = [
+  { yc: 0.14, spread: 0.06 },
+  { yc: 0.46, spread: 0.1 },
+  { yc: 0.81, spread: 0.12 },
+];
+
+const graph = buildHnsw(points, HNSW_SEED, { m: 3, maxLevel: 2 });
+
+/** Band position for a node's base coordinate at a given layer. */
+function bandPoint(layer: number, p: { x: number; y: number }): { x: number; y: number } {
+  const band = BANDS[Math.min(layer, BANDS.length - 1)];
+  return { x: 0.04 + p.x * 0.92, y: band.yc + (p.y * 2 - 1) * band.spread };
+}
+
+/** Flat per-layer display index: `${layer}:${id}` -> index into display nodes. */
+const displayIndex = new Map<string, number>();
+interface DisplayNode {
+  x: number;
+  y: number;
+  layer: number;
+  id: number;
+}
+const displayNodes: DisplayNode[] = [];
+for (let layer = graph.layers - 1; layer >= 0; layer--) {
+  for (const id of graph.presentAt[layer]) {
+    displayIndex.set(`${layer}:${id}`, displayNodes.length);
+    const bp = bandPoint(layer, graph.points[id]);
+    displayNodes.push({ x: bp.x, y: bp.y, layer, id });
+  }
+}
+
+interface DisplayEdge {
+  a: number;
+  b: number;
+  layer: number;
+}
+const displayEdges: DisplayEdge[] = [];
+const edgeSeen = new Set<string>();
+for (let layer = 0; layer < graph.layers; layer++) {
+  graph.presentAt[layer].forEach((id, i) => {
+    for (const n of graph.adjacency[layer][i]) {
+      const key = layer < n ? `${layer}:${id}:${n}` : `${layer}:${n}:${id}`;
+      if (edgeSeen.has(key)) continue;
+      edgeSeen.add(key);
+      displayEdges.push({
+        a: displayIndex.get(`${layer}:${id}`)!,
+        b: displayIndex.get(`${layer}:${n}`)!,
+        layer,
+      });
+    }
+  });
+}
+
+const defaultTrace = hnswSearch(graph, defaultQuery, {
+  k: DEFAULT_K,
+  ef: DEFAULT_EF,
+  filter: useFilter ? FILTER : undefined,
+});
+const defaultExact = exactSearch(points, defaultQuery, DEFAULT_K, useFilter ? FILTER : undefined);
+const defaultRecall = recall(defaultTrace.topK, defaultExact.ids);
+
+// Walk order for the animated replay: entry/greedy/descend hops with phases.
+interface PathNode {
+  i: number;
+  phase: number;
+  topk?: boolean;
+}
+interface PathEdge {
+  e: number;
+  phase: number;
+}
+const pathNodes: PathNode[] = [];
+const pathEdges: PathEdge[] = [];
+{
+  let phase = 0.05;
+  const advance = () => {
+    phase = Math.min(0.88, phase + 0.07);
+    return phase;
+  };
+  const edgeKey = new Map<string, number>();
+  displayEdges.forEach((e, i) => {
+    edgeKey.set(`${e.layer}:${e.a}:${e.b}`, i);
+    edgeKey.set(`${e.layer}:${e.b}:${e.a}`, i);
+  });
+  const pushHop = (layer: number, aId: number, bId: number) => {
+    const a = displayIndex.get(`${layer}:${aId}`);
+    const b = displayIndex.get(`${layer}:${bId}`);
+    if (a === undefined || b === undefined) return;
+    const e = edgeKey.get(`${layer}:${a}:${b}`);
+    if (e !== undefined) pathEdges.push({ e, phase });
+  };
+  for (const step of defaultTrace.steps) {
+    if (step.kind === 'entry') {
+      const i = displayIndex.get(`${step.layer}:${step.id}`);
+      if (i !== undefined) pathNodes.push({ i, phase });
+    } else if (step.kind === 'greedy') {
+      const p = advance();
+      pushHop(step.layer, step.from, step.to);
+      const i = displayIndex.get(`${step.layer}:${step.to}`);
+      if (i !== undefined) pathNodes.push({ i, phase: p });
+    } else if (step.kind === 'descend') {
+      const p = advance();
+      const a = displayIndex.get(`${step.fromLayer}:${step.id}`);
+      const b = displayIndex.get(`${step.toLayer}:${step.id}`);
+      if (a !== undefined && b !== undefined) {
+        const e = displayEdges.findIndex(
+          (de) => de.layer === -1 && ((de.a === a && de.b === b) || (de.a === b && de.b === a)),
+        );
+        if (e < 0) {
+          displayEdges.push({ a, b, layer: -1 });
+          pathEdges.push({ e: displayEdges.length - 1, phase: p });
+        } else {
+          pathEdges.push({ e, phase: p });
+        }
+      }
+    } else if (step.kind === 'expand') {
+      for (const kept of step.kept) {
+        const p = advance();
+        const i = displayIndex.get(`0:${kept}`);
+        if (i !== undefined) pathNodes.push({ i, phase: p });
+      }
+    }
+  }
+  for (const id of defaultTrace.topK) {
+    const i = displayIndex.get(`0:${id}`);
+    if (i !== undefined) pathNodes.push({ i, phase: 0.92, topk: true });
+  }
+}
+
+/** The shape the WGSL bakers consume (normalized coords, flat index arrays). */
+interface GpuGraph {
+  nodes: Array<{ x: number; y: number; layer: number }>;
+  edges: Array<{ a: number; b: number; layer: number }>;
+  query: { x: number; y: number };
+  pathNodes: PathNode[];
+  pathEdges: PathEdge[];
+}
+
+const gpuGraph: GpuGraph | null = isHnsw
+  ? {
+      nodes: displayNodes.map((n) => ({ x: n.x, y: n.y, layer: n.layer })),
+      edges: displayEdges,
+      query: {
+        x: 0.04 + defaultQuery.x * 0.92,
+        y: BANDS[2].yc + (defaultQuery.y * 2 - 1) * BANDS[2].spread,
+      },
+      pathNodes: pathNodes.slice(0, 16),
+      pathEdges: pathEdges.slice(0, 16),
+    }
+  : null;
+
+const f = (v: number) => v.toFixed(4);
+
+function hnswBgWgsl(q: { x: number; y: number }): string {
+  return `
+    struct Params { time: f32, mx: f32, my: f32, hover: f32 }
+    @group(0) @binding(0) var<uniform> params: Params;
+
+    @fragment
+    fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
+      let d = distance(uv, vec2f(0.5));
+      var col = mix(vec3f(0.045, 0.058, 0.078), vec3f(0.016, 0.021, 0.030), smoothstep(0.1, 0.95, d));
+      let grid = step(0.9985, fract(uv.x * 40.0)) + step(0.9985, fract(uv.y * 20.0));
+      col += vec3f(0.04, 0.07, 0.08) * grid * 0.28;
+      // layer band separators
+      let b1 = smoothstep(0.003, 0.0, abs(uv.y - 0.28));
+      let b2 = smoothstep(0.003, 0.0, abs(uv.y - 0.62));
+      col += vec3f(0.0, 0.55, 0.50) * (b1 + b2) * 0.08;
+      // query reticle
+      let q = vec2f(${f(q.x)}, ${f(q.y)});
+      let rq = distance(uv, q);
+      let pulse = 0.5 + 0.5 * sin(params.time * 2.2);
+      var ring = smoothstep(0.008, 0.002, abs(rq - (0.014 + 0.006 * pulse)));
+      ring += 0.3 * smoothstep(0.02, 0.0, rq);
+      col += vec3f(1.0, 0.72, 0.3) * ring * 0.9;
+      return vec4f(col, 1.0);
+    }
+  `;
+}
+
+function hnswNodesWgsl(g: NonNullable<typeof gpuGraph>): string {
+  const N = g.nodes.length;
+  const P = g.pathNodes.length;
+  const nodesLit = g.nodes
+    .map((n) => `vec4f(${f(n.x)}, ${f(n.y)}, ${n.layer}.0, 0.0)`)
+    .join(',\n  ');
+  const pathLit = g.pathNodes
+    .map(
+      (p) =>
+        `vec4f(${f(g.nodes[p.i].x)}, ${f(g.nodes[p.i].y)}, ${f(p.phase)}, ${p.topk ? 1 : 0}.0)`,
+    )
+    .join(',\n  ');
+  return `
+    struct Params { time: f32, mx: f32, my: f32, hover: f32, stepPhase: f32 }
+    @group(0) @binding(0) var<uniform> params: Params;
+
+    const N = ${N};
+    const NODES = array<vec4f, ${N}>(
+  ${nodesLit}
+    );
+    const PATH_N = array<vec4f, ${P}>(
+  ${pathLit}
+    );
+    const QUERY = vec2f(${f(g.query.x)}, ${f(g.query.y)});
+
+    struct VOut {
+      @builtin(position) pos: vec4f,
+      @location(0) uv: vec2f,
+      @location(1) color: vec3f,
+      @location(2) glow: f32,
+      @location(3) ring: f32,
+    }
+
+    @vertex
+    fn vs_main(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> VOut {
+      var corners = array<vec2f, 6>(
+        vec2f(-1.0, -1.0), vec2f(1.0, -1.0), vec2f(1.0, 1.0),
+        vec2f(-1.0, -1.0), vec2f(1.0, 1.0), vec2f(-1.0, 1.0)
+      );
+      let n = NODES[ii];
+      let layer = n.z;
+      var size = 0.011;
+      var col = vec3f(1.0, 0.36, 0.56);
+      if (layer > 1.5) { size = 0.030; col = vec3f(0.0, 1.0, 0.88); }
+      else if (layer > 0.5) { size = 0.018; col = vec3f(0.49, 0.36, 1.0); }
+
+      let cyc = select((params.time % 12.0) / 12.0, params.stepPhase, params.stepPhase >= 0.0);
+      var glow = 0.0;
+      var ring = 0.0;
+      for (var k = 0; k < ${P}; k = k + 1) {
+        let p = PATH_N[k];
+        if (distance(p.xy, n.xy) < 0.001) {
+          let lit = smoothstep(p.z, p.z + 0.05, cyc) * (1.0 - smoothstep(0.955, 0.995, cyc));
+          glow = max(glow, lit);
+          if (p.w > 0.5) {
+            ring = max(ring, lit);
+            size = size * 1.7;
+          }
+        }
+      }
+      glow = max(glow, (1.0 - smoothstep(0.0, 0.09, distance(n.xy, QUERY))) * 0.55);
+      if (params.hover > 0.5) {
+        let hd = distance(n.xy, vec2f(params.mx, params.my));
+        glow = max(glow, (1.0 - smoothstep(0.0, 0.05, hd)) * 0.95);
+      }
+      glow = max(glow, 0.07 + 0.05 * sin(params.time * 0.8 + f32(ii)));
+
+      var out: VOut;
+      let half2 = corners[vi] * vec2f(size, size * 2.0);
+      out.pos = vec4f(vec2f(n.x * 2.0 - 1.0, n.y * 2.0 - 1.0) + half2, 0.0, 1.0);
+      out.uv = corners[vi];
+      out.color = col;
+      out.glow = glow;
+      out.ring = ring;
+      return out;
+    }
+
+    struct FIn {
+      @location(0) uv: vec2f,
+      @location(1) color: vec3f,
+      @location(2) glow: f32,
+      @location(3) ring: f32,
+    }
+
+    @fragment
+    fn fs_main(in: FIn) -> @location(0) vec4f {
+      let r = length(in.uv);
+      let disk = 1.0 - smoothstep(0.72, 1.0, r);
+      var col = in.color * (0.30 + 1.7 * in.glow);
+      var a = disk * clamp(0.30 + in.glow, 0.0, 1.0);
+      if (in.ring > 0.0) {
+        let ann = 1.0 - smoothstep(0.02, 0.14, abs(r - 0.72));
+        col = mix(col, vec3f(0.96, 0.65, 0.14), ann * in.ring);
+        a = max(a, ann * in.ring * disk);
+      }
+      if (a <= 0.001) { discard; }
+      return vec4f(col, a);
+    }
+  `;
+}
+
+function hnswEdgesWgsl(g: NonNullable<typeof gpuGraph>): string {
+  const M = g.edges.length;
+  const Q = g.pathEdges.length;
+  const edgesLit = g.edges
+    .map(
+      (e) =>
+        `vec4f(${f(g.nodes[e.a].x)}, ${f(g.nodes[e.a].y)}, ${f(g.nodes[e.b].x)}, ${f(g.nodes[e.b].y)})`,
+    )
+    .join(',\n  ');
+  const layerLit = g.edges.map((e) => `${e.layer}.0`).join(', ');
+  const pathLit = g.pathEdges
+    .map((p) => {
+      const e = g.edges[p.e];
+      return `vec4f(${f(g.nodes[e.a].x)}, ${f(g.nodes[e.a].y)}, ${f(g.nodes[e.b].x)}, ${f(g.nodes[e.b].y)})`;
+    })
+    .join(',\n  ');
+  const phaseLit = g.pathEdges.map((p) => f(p.phase)).join(', ');
+  return `
+    struct Params { time: f32, mx: f32, my: f32, hover: f32, stepPhase: f32 }
+    @group(0) @binding(0) var<uniform> params: Params;
+
+    const M = ${M};
+    const EDGES = array<vec4f, ${M}>(
+  ${edgesLit}
+    );
+    const EDGE_LAYER = array<f32, ${M}>(${layerLit});
+    const PATH_E = array<vec4f, ${Q}>(
+  ${pathLit}
+    );
+    const PATH_E_PHASE = array<f32, ${Q}>(${phaseLit});
+
+    struct VOut {
+      @builtin(position) pos: vec4f,
+      @location(0) t: f32,
+      @location(1) color: vec3f,
+      @location(2) alpha: f32,
+    }
+
+    @vertex
+    fn vs_main(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> VOut {
+      var corners = array<vec2f, 6>(
+        vec2f(-1.0, -1.0), vec2f(1.0, -1.0), vec2f(1.0, 1.0),
+        vec2f(-1.0, -1.0), vec2f(1.0, 1.0), vec2f(-1.0, 1.0)
+      );
+      let e = EDGES[ii];
+      let layer = EDGE_LAYER[ii];
+
+      let cyc = select((params.time % 12.0) / 12.0, params.stepPhase, params.stepPhase >= 0.0);
+      var lit = 0.0;
+      for (var k = 0; k < ${Q}; k = k + 1) {
+        let p = PATH_E[k];
+        if (abs(p.x - e.x) < 0.001 && abs(p.y - e.y) < 0.001 && abs(p.z - e.z) < 0.001 && abs(p.w - e.w) < 0.001) {
+          lit = max(lit, smoothstep(PATH_E_PHASE[k], PATH_E_PHASE[k] + 0.05, cyc) * (1.0 - smoothstep(0.955, 0.995, cyc)));
+        }
+      }
+      var hov = 0.0;
+      if (params.hover > 0.5) {
+        let dm = min(distance(e.xy, vec2f(params.mx, params.my)), distance(e.zw, vec2f(params.mx, params.my)));
+        hov = 1.0 - smoothstep(0.0, 0.05, dm);
+      }
+
+      var col = vec3f(0.35, 0.5, 0.55);
+      var alpha = 0.10;
+      if (layer > 1.5) { col = vec3f(0.0, 1.0, 0.88); }
+      else if (layer > 0.5) { col = vec3f(0.49, 0.36, 1.0); }
+      else if (layer < -0.5) { alpha = 0.05; }
+      else { col = vec3f(1.0, 0.36, 0.56); }
+
+      let litAmt = clamp(lit + hov * 0.8, 0.0, 1.0);
+      col = mix(col, vec3f(1.0, 0.75, 0.35) * 1.4, litAmt);
+      alpha = mix(alpha, 0.85, litAmt);
+
+      // geometry in screen-square space (y halved) so perpendiculars stay perpendicular
+      let aS = vec2f(e.x * 2.0 - 1.0, (e.y * 2.0 - 1.0) * 0.5);
+      let bS = vec2f(e.z * 2.0 - 1.0, (e.w * 2.0 - 1.0) * 0.5);
+      let d = bS - aS;
+      let len = max(length(d), 0.0001);
+      let dir = d / len;
+      let nor = vec2f(-dir.y, dir.x);
+      let width = 0.0022 + 0.004 * litAmt + 0.002 * hov;
+      let t = (corners[vi].x + 1.0) * 0.5;
+      let posS = aS + dir * (len * t) + nor * (corners[vi].y * width);
+
+      var out: VOut;
+      out.pos = vec4f(posS.x, posS.y * 2.0, 0.0, 1.0);
+      out.t = t;
+      out.color = col;
+      out.alpha = alpha * (0.75 + 0.25 * smoothstep(0.0, 0.08, min(t, 1.0 - t)));
+      return out;
+    }
+
+    struct FIn {
+      @location(0) t: f32,
+      @location(1) color: vec3f,
+      @location(2) alpha: f32,
+    }
+
+    @fragment
+    fn fs_main(in: FIn) -> @location(0) vec4f {
+      return vec4f(in.color, in.alpha);
+    }
+  `;
+}
+
+const hnswStash = gpuGraph
+  ? {
+      bg: hnswBgWgsl(gpuGraph.query),
+      nodes: hnswNodesWgsl(gpuGraph),
+      edges: hnswEdgesWgsl(gpuGraph),
+      n: gpuGraph.nodes.length,
+      m: gpuGraph.edges.length,
+    }
+  : null;
+
+// ---------------------------------------------------------------------
+// IVF coarse quantizer: 4 deterministic centroids by real distance.
+// ---------------------------------------------------------------------
+
+const ivfCentroids = [
+  { x: 0.2, y: 0.2 },
+  { x: 0.8, y: 0.2 },
+  { x: 0.2, y: 0.8 },
+  { x: 0.8, y: 0.8 },
+];
+const ivfAssign = points.map((p) => {
+  let best = 0;
+  let bd = Infinity;
+  ivfCentroids.forEach((c, i) => {
+    const d = (p.x - c.x) ** 2 + (p.y - c.y) ** 2;
+    if (d < bd) {
+      bd = d;
+      best = i;
+    }
+  });
+  return best;
+});
+const ivfProbe = (() => {
+  let best = 0;
+  let bd = Infinity;
+  ivfCentroids.forEach((c, i) => {
+    const d = (defaultQuery.x - c.x) ** 2 + (defaultQuery.y - c.y) ** 2;
+    if (d < bd) {
+      bd = d;
+      best = i;
+    }
+  });
+  return best;
+})();
+const ivfClusterIds = points.filter((p) => ivfAssign[p.id] === ivfProbe).map((p) => p.id);
+const ivfClusterScan = [...ivfClusterIds]
+  .sort(
+    (a, b) =>
+      (points[a].x - defaultQuery.x) ** 2 +
+      (points[a].y - defaultQuery.y) ** 2 -
+      ((points[b].x - defaultQuery.x) ** 2 + (points[b].y - defaultQuery.y) ** 2),
+  )
+  .slice(0, DEFAULT_K);
+const ivfExact = exactSearch(points, defaultQuery, DEFAULT_K);
+const ivfRecall = recall(ivfClusterScan, ivfExact.ids);
+const ivfSkipped = POINT_COUNT - ivfClusterIds.length;
+
+const toSvg = (nx: number, ny: number) => ({ x: nx * viewW, y: ny * viewH });
 ---
 
-<svg
-  viewBox={`0 0 ${viewW} ${viewH}`}
-  role="img"
-  aria-label={`Vector index schematic for ${visual.mode}: ${isHnsw ? 'HNSW layered graph with top-down traversal' : isIvf ? 'IVF-PQ clusters with product quantization' : 'brute-force scan over all vectors'}${visual.showPayloadFilter ? ', with a payload filter bitmap overlay' : ''}${visual.showTopK ? ', with top-k highlighted' : ''}`}
-  class="h-auto w-full"
-  data-vector-mode={visual.mode}
-  data-vector-show-payload={visual.showPayloadFilter ? 'true' : 'false'}
-  data-vector-show-topk={visual.showTopK ? 'true' : 'false'}
+<div
+  class:list={[
+    'relative',
+    isHnsw && 'overflow-hidden rounded-lg border border-[var(--color-border)] bg-[#0a0e13]',
+  ]}
+  {...isHnsw
+    ? {
+        'data-hnsw-gpu': '',
+        'data-nodes': hnswStash?.n,
+        'data-edges': hnswStash?.m,
+        'data-fps': 30,
+      }
+    : {}}
 >
-  {/* layer labels */}
   {
     isHnsw && (
-      <g>
-        <text x={20} y={65} fill="#8b95a7" font-size="10" font-family="ui-monospace, monospace">
-          L2 (top)
-        </text>
-        <text x={20} y={165} fill="#8b95a7" font-size="10" font-family="ui-monospace, monospace">
-          L1
-        </text>
-        <text x={20} y={290} fill="#8b95a7" font-size="10" font-family="ui-monospace, monospace">
-          L0 (base)
-        </text>
-      </g>
+      <canvas
+        class="absolute inset-0 z-10 h-full w-full cursor-crosshair opacity-0 transition-opacity duration-700"
+        aria-hidden="true"
+      />
     )
   }
 
-  {/* edges */}
   {
     isHnsw && (
-      <g stroke="#00ffe155" stroke-width="1">
-        {edgesL2.map(([a, b]) => {
-          const pa = POINTS.find((p) => p.id === a)!;
-          const pb = POINTS.find((p) => p.id === b)!;
-          return <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} />;
-        })}
-        {edgesL1.map(([a, b]) => {
-          const pa = POINTS.find((p) => p.id === a)!;
-          const pb = POINTS.find((p) => p.id === b)!;
-          return <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} stroke="#7c5cff55" />;
-        })}
-        {edgesL0.map(([a, b]) => {
-          const pa = POINTS.find((p) => p.id === a)!;
-          const pb = POINTS.find((p) => p.id === b)!;
-          return <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} stroke="#ff5d8f55" />;
-        })}
-      </g>
+      <div
+        class="pointer-events-none absolute inset-0 z-20 font-mono text-[0.6rem] text-[var(--color-fg-muted)]"
+        data-hnsw-labels
+        hidden
+      >
+        <span class="absolute top-[3%] left-2 rounded bg-black/60 px-1.5 py-0.5">
+          L{graph.layers - 1} · sparse · entry
+        </span>
+        {graph.layers > 2 && (
+          <span class="absolute top-[33%] left-2 rounded bg-black/60 px-1.5 py-0.5">L1</span>
+        )}
+        <span class="absolute top-[66%] left-2 rounded bg-black/60 px-1.5 py-0.5">
+          L0 · dense · base
+        </span>
+        <span class="absolute top-[3%] right-2 rounded bg-black/60 px-1.5 py-0.5 text-[var(--color-accent)]">
+          live · WebGPU — hover the graph · click to replay the search
+        </span>
+      </div>
     )
   }
 
-  {/* IVF-PQ cluster cells */}
-  {
-    isIvf && (
-      <g>
-        {[0, 1, 2, 3].map((i) => {
-          const x = 40 + (i % 2) * 320;
-          const y = 40 + Math.floor(i / 2) * 130;
-          return (
-            <g>
-              <rect
-                x={x}
-                y={y}
-                width={300}
-                height={120}
-                rx={8}
-                fill="#7c5cff11"
-                stroke="#7c5cff"
-                stroke-dasharray="3 3"
-              />
+  <div
+    class:list={[{ 'transition-opacity duration-700': isHnsw }]}
+    {...isHnsw ? { 'data-hnsw-static': '' } : {}}
+  >
+    <svg
+      viewBox={`0 0 ${viewW} ${viewH}`}
+      role="img"
+      aria-label={`Vector index schematic for ${visual.mode}: ${isHnsw ? 'HNSW layered graph with a real traced search' : isIvf ? 'IVF coarse clusters with exact-baseline comparison' : 'brute-force scan over all vectors'}${visual.showPayloadFilter ? ', filtered by a payload predicate' : ''}${visual.showTopK ? ', with the searched top-k highlighted' : ''}`}
+      class="h-auto w-full"
+      data-vector-mode={visual.mode}
+      data-vector-show-payload={visual.showPayloadFilter ? 'true' : 'false'}
+      data-vector-show-topk={visual.showTopK ? 'true' : 'false'}
+    >
+      {/* layer labels */}
+      {
+        isHnsw && (
+          <g>
+            <text x={8} y={40} fill="#8b95a7" font-size="10" font-family="ui-monospace, monospace">
+              L{graph.layers - 1} (top)
+            </text>
+            {graph.layers > 2 && (
               <text
-                x={x + 8}
-                y={y + 18}
-                fill="#7c5cff"
-                font-size="11"
+                x={8}
+                y={160}
+                fill="#8b95a7"
+                font-size="10"
                 font-family="ui-monospace, monospace"
               >
-                cluster {i}
+                L1
               </text>
-              {POINTS.filter((p) => p.layer === 0 && (p.id - 7) % 4 === i).map((p) => (
-                <circle
-                  cx={x + 40 + ((p.id * 7) % 240)}
-                  cy={y + 40 + ((p.id * 11) % 60)}
-                  r="6"
-                  fill="#5cffb1"
+            )}
+            <text x={8} y={300} fill="#8b95a7" font-size="10" font-family="ui-monospace, monospace">
+              L0 (base)
+            </text>
+          </g>
+        )
+      }
+
+      {/* edges (real graph) */}
+      {
+        isHnsw && (
+          <g data-edges>
+            {displayEdges.map((e, i) => {
+              const pa = toSvg(displayNodes[e.a].x, displayNodes[e.a].y);
+              const pb = toSvg(displayNodes[e.b].x, displayNodes[e.b].y);
+              const color =
+                e.layer === -1
+                  ? '#f5a62322'
+                  : e.layer > 1
+                    ? '#00ffe144'
+                    : e.layer > 0
+                      ? '#7c5cff44'
+                      : '#ff5d8f33';
+              return (
+                <line
+                  x1={pa.x}
+                  y1={pa.y}
+                  x2={pb.x}
+                  y2={pb.y}
+                  stroke={color}
+                  data-eid={i}
+                  data-elayer={e.layer}
                 />
-              ))}
+              );
+            })}
+          </g>
+        )
+      }
+
+      {/* walked path (real trace) */}
+      {
+        isHnsw && (
+          <g data-walk>
+            {pathEdges.map((pe, i) => {
+              const e = displayEdges[pe.e];
+              const pa = toSvg(displayNodes[e.a].x, displayNodes[e.a].y);
+              const pb = toSvg(displayNodes[e.b].x, displayNodes[e.b].y);
+              return (
+                <line
+                  x1={pa.x}
+                  y1={pa.y}
+                  x2={pb.x}
+                  y2={pb.y}
+                  stroke="#f5a623"
+                  stroke-width="2.4"
+                  stroke-linecap="round"
+                  stroke-dasharray="8 4"
+                  class="dh-dash"
+                  data-walk-edge={i}
+                  data-walk-phase={pe.phase}
+                />
+              );
+            })}
+          </g>
+        )
+      }
+
+      {/* IVF-PQ coarse clusters (real assignment by distance) */}
+      {
+        isIvf && (
+          <g>
+            {ivfCentroids.map((c, i) => (
+              <g>
+                <rect
+                  x={c.x * viewW - 150}
+                  y={c.y * viewH - 60}
+                  width={300}
+                  height={120}
+                  rx={8}
+                  fill={i === ivfProbe ? '#7c5cff22' : '#7c5cff08'}
+                  stroke={i === ivfProbe ? '#7c5cff' : '#7c5cff55'}
+                  stroke-dasharray={i === ivfProbe ? undefined : '3 3'}
+                />
+                <text
+                  x={c.x * viewW - 142}
+                  y={c.y * viewH - 42}
+                  fill="#7c5cff"
+                  font-size="11"
+                  font-family="ui-monospace, monospace"
+                >
+                  cluster {i}
+                  {i === ivfProbe ? ' — probed (nearest centroid)' : ' — skipped'}
+                </text>
+                {points
+                  .filter((p) => ivfAssign[p.id] === i)
+                  .map((p) => {
+                    const px = toSvg(0.04 + p.x * 0.92, 0.06 + p.y * 0.88);
+                    const inScan = i === ivfProbe && ivfClusterScan.includes(p.id);
+                    return (
+                      <circle
+                        cx={px.x}
+                        cy={px.y}
+                        r={inScan ? 7 : 5}
+                        fill={inScan ? '#f5a623' : '#5cffb1'}
+                        opacity={i === ivfProbe ? 1 : 0.35}
+                      />
+                    );
+                  })}
+              </g>
+            ))}
+          </g>
+        )
+      }
+
+      {/* flat mode = the exact baseline itself */}
+      {
+        !isHnsw && !isIvf && (
+          <g>
+            {points.map((p) => {
+              const px = toSvg(0.04 + p.x * 0.92, 0.06 + p.y * 0.88);
+              const inTop = defaultExact.ids.includes(p.id);
+              return (
+                <circle
+                  cx={px.x}
+                  cy={px.y}
+                  r={inTop ? 7 : 5}
+                  fill={inTop ? '#f5a623' : '#5cffb1'}
+                />
+              );
+            })}
+            <text
+              x={40}
+              y={viewH - 12}
+              fill="#8b95a7"
+              font-size="10"
+              font-family="ui-monospace, monospace"
+            >
+              flat: every vector scanned — this IS the exact baseline ({POINT_COUNT} distances)
+            </text>
+          </g>
+        )
+      }
+
+      {/* payload filter overlay (real predicate used by the trace) */}
+      {
+        useFilter && isHnsw && (
+          <g>
+            {points
+              .filter((p) => FILTER(p.id))
+              .map((p) => {
+                const bp = bandPoint(0, p);
+                const px = toSvg(bp.x, bp.y);
+                return (
+                  <circle
+                    cx={px.x}
+                    cy={px.y}
+                    r={14}
+                    fill="none"
+                    stroke="#ffb347"
+                    stroke-width="1.5"
+                    stroke-dasharray="3 3"
+                  />
+                );
+              })}
+            <text
+              x={viewW - 12}
+              y={352}
+              text-anchor="end"
+              fill="#ffb347"
+              font-size="11"
+              font-family="ui-monospace, monospace"
+            >
+              payload filter: id even — walk crosses non-matching nodes, beam holds matches only
+            </text>
+          </g>
+        )
+      }
+
+      {/* nodes (real graph, identity = id, one glyph per layer band) */}
+      {
+        displayNodes.map((n) => {
+          const px = toSvg(n.x, n.y);
+          const color = n.layer === 2 ? '#00ffe1' : n.layer === 1 ? '#7c5cff' : '#ff5d8f';
+          const isTopK = visual.showTopK && n.layer === 0 && defaultTrace.topK.includes(n.id);
+          const visited = defaultTrace.visitedNodes.includes(n.id) && n.layer === 0;
+          return (
+            <g
+              data-nid={`${n.layer}:${n.id}`}
+              data-nlayer={n.layer}
+              data-ntopk={isTopK ? '1' : '0'}
+            >
+              {isTopK && (
+                <circle
+                  cx={px.x}
+                  cy={px.y}
+                  r={13}
+                  fill="none"
+                  stroke="#f5a623"
+                  stroke-width="2"
+                  data-topk-ring
+                />
+              )}
+              {visited && !isTopK && (
+                <circle
+                  cx={px.x}
+                  cy={px.y}
+                  r={9}
+                  fill="none"
+                  stroke="#f5a62388"
+                  stroke-width="1"
+                  data-visited-ring
+                />
+              )}
+              <circle
+                cx={px.x}
+                cy={px.y}
+                r={n.layer === 2 ? 8 : n.layer === 1 ? 6 : 4.5}
+                fill={color}
+              />
+              {(n.layer === graph.layers - 1 || isTopK || visited) && (
+                <text
+                  x={px.x + 10}
+                  y={px.y - 8}
+                  fill="#c7d0de"
+                  font-size="9"
+                  font-family="ui-monospace, monospace"
+                >
+                  {n.id}
+                </text>
+              )}
             </g>
           );
-        })}
-      </g>
-    )
-  }
+        })
+      }
 
-  {/* flat-mode brute-force */}
-  {
-    !isHnsw && !isIvf && (
-      <g>
-        {POINTS.map((p) => (
-          <circle cx={p.x} cy={p.y} r="5" fill="#5cffb1" />
-        ))}
-        <text
-          x={40}
-          y={viewH - 20}
-          fill="#8b95a7"
-          font-size="10"
-          font-family="ui-monospace, monospace"
+      {/* query marker (real query position) */}
+      {
+        isHnsw && (
+          <g data-query>
+            {(() => {
+              const qn = gpuGraph!.query;
+              const px = toSvg(qn.x, qn.y);
+              return (
+                <g>
+                  <circle
+                    cx={px.x}
+                    cy={px.y}
+                    r="14"
+                    fill="none"
+                    stroke="#ffb347"
+                    stroke-width="1.6"
+                    opacity="0.9"
+                  />
+                  <circle cx={px.x} cy={px.y} r="3.2" fill="#ffb347" />
+                  <text
+                    x={px.x + 18}
+                    y={px.y + 4}
+                    fill="#ffb347"
+                    font-size="10"
+                    font-family="ui-monospace, monospace"
+                  >
+                    query q
+                  </text>
+                </g>
+              );
+            })()}
+          </g>
+        )
+      }
+    </svg>
+  </div>
+</div>
+
+{/* Step controls + counters + narration: one trace state shared by SVG, text, and GPU. */}
+{
+  isHnsw && (
+    <div
+      class="mt-3 space-y-2"
+      data-hnsw-controls
+      data-seed={HNSW_SEED}
+      data-k={DEFAULT_K}
+      data-ef={DEFAULT_EF}
+    >
+      <div class="flex flex-wrap items-center gap-2 text-xs">
+        <button
+          type="button"
+          data-ctrl="play"
+          class="rounded border border-[var(--color-border)] px-2 py-1 hover:bg-white/5"
+          aria-pressed="false"
         >
-          flat: scan every vector; no index structure
-        </text>
-      </g>
-    )
-  }
-
-  {/* payload filter overlay */}
-  {
-    visual.showPayloadFilter && (
-      <g>
-        {POINTS.filter((p) => p.id % 2 === 0).map((p) => (
-          <circle
-            cx={p.x}
-            cy={p.y}
-            r={14}
-            fill="none"
-            stroke="#ffb347"
-            stroke-width="2"
-            stroke-dasharray="3 3"
+          ▶ play
+        </button>
+        <button
+          type="button"
+          data-ctrl="prev"
+          class="rounded border border-[var(--color-border)] px-2 py-1 hover:bg-white/5"
+        >
+          ◀ step
+        </button>
+        <button
+          type="button"
+          data-ctrl="next"
+          class="rounded border border-[var(--color-border)] px-2 py-1 hover:bg-white/5"
+        >
+          step ▶
+        </button>
+        <button
+          type="button"
+          data-ctrl="reset"
+          class="rounded border border-[var(--color-border)] px-2 py-1 hover:bg-white/5"
+        >
+          ↺ reset
+        </button>
+        <label class="ml-2 flex items-center gap-1">
+          k
+          <input
+            type="range"
+            min="1"
+            max="6"
+            value={DEFAULT_K}
+            data-param="k"
+            class="w-16 align-middle"
+            aria-label="result count k"
           />
-        ))}
-        <text
-          x={viewW - 20}
-          y={40}
-          text-anchor="end"
-          fill="#ffb347"
-          font-size="11"
-          font-family="ui-monospace, monospace"
-        >
-          payload filter: candidate bitmap
-        </text>
-      </g>
-    )
+          <span data-kout class="w-4 font-mono">
+            {DEFAULT_K}
+          </span>
+        </label>
+        <label class="flex items-center gap-1">
+          ef
+          <input
+            type="range"
+            min="2"
+            max="28"
+            step="2"
+            value={DEFAULT_EF}
+            data-param="ef"
+            class="w-20 align-middle"
+            aria-label="beam width ef"
+          />
+          <span data-efout class="w-5 font-mono">
+            {DEFAULT_EF}
+          </span>
+        </label>
+      </div>
+      <p
+        class="font-mono text-[0.7rem] text-[var(--color-fg-muted)]"
+        data-step-caption
+        aria-live="polite"
+      >
+        {defaultTrace.steps[defaultTrace.steps.length - 1]?.note}
+      </p>
+      <p class="font-mono text-[0.7rem] text-[var(--color-fg-muted)]" data-hnsw-stats>
+        distance evals {defaultTrace.distanceEvaluations} · visited{' '}
+        {defaultTrace.visitedNodes.length}/{POINT_COUNT} · recall {defaultRecall.toFixed(2)} vs
+        exact ({useFilter ? 'filtered, ' : ''}k={DEFAULT_K}, ef={DEFAULT_EF})
+      </p>
+      <p class="text-[0.7rem] text-[var(--color-fg-muted)]">
+        Teaching model: vectors are projected to 2D from a synthetic set so the algorithm's geometry
+        is visible — production embeddings are high-dimensional and this layout is not
+        representative of them. Results are approximate; the exact baseline is computed on the same
+        points for recall.
+      </p>
+    </div>
+  )
+}
+
+{
+  isIvf && (
+    <div class="mt-3 space-y-1 text-xs text-[var(--color-fg-muted)]">
+      <p class="font-mono">
+        probed 1/4 clusters · scanned {ivfClusterIds.length}/{POINT_COUNT} vectors · skipped{' '}
+        {ivfSkipped} · recall {ivfRecall.toFixed(2)} vs exact · top-{DEFAULT_K}:{' '}
+        {ivfClusterScan.join(', ')}
+      </p>
+      <p>
+        IVF's coarse quantizer prunes clusters by centroid distance; the tradeoff is visible —
+        vectors in skipped clusters can never appear in the result, so recall is capped by the probe
+        count. Product quantization (the PQ in IVF-PQ) is a separate compression step applied inside
+        each cluster's scan; it is not the partitioning shown here.
+      </p>
+    </div>
+  )
+}
+
+<script
+  is:inline
+  define:vars={{
+    bgWgsl: hnswStash?.bg ?? '',
+    nodesWgsl: hnswStash?.nodes ?? '',
+    edgesWgsl: hnswStash?.edges ?? '',
+    seedConst: HNSW_SEED,
+    pointCount: POINT_COUNT,
+  }}
+>
+  window.__HNSW_WGSL__ = { bg: bgWgsl, nodes: nodesWgsl, edges: edgesWgsl };
+  window.__HNSW_SEED__ = seedConst;
+  window.__HNSW_POINTS__ = pointCount;
+</script>
+
+<script>
+  /**
+   * Client boot for the vector playground.
+   *  - The step engine re-derives the SAME deterministic trace from
+   *    src/lib/vector-search.ts (pure module, identical results server and
+   *    client) and drives SVG highlights, counters, narration — and the GPU
+   *    scene's stepPhase uniform, so every surface shares one trace state.
+   *  - The GPU mount goes through the shared lifecycle controller
+   *    (lib/vgpu-runtime.ts): viewport-deferred boot, first-frame-verified
+   *    activation, reduced-motion changes, device loss, teardown.
+   */
+  import { mountGpuScene } from '../../lib/vgpu-runtime';
+  import { createBloomChain } from '../../lib/vgpu-bloom';
+  import {
+    buildHnsw,
+    exactSearch,
+    hnswSearch,
+    recall,
+    toyVectors,
+    type SearchTrace,
+  } from '../../lib/vector-search';
+
+  type Mount = HTMLElement;
+
+  function clampInt(v: string | undefined, def: number, min: number, max: number): number {
+    const n = parseInt(v ?? String(def), 10);
+    return Math.max(min, Math.min(max, isNaN(n) ? def : n));
   }
 
-  {/* points */}
-  {
-    POINTS.map((p) => {
-      const color = p.layer === 2 ? '#00ffe1' : p.layer === 1 ? '#7c5cff' : '#ff5d8f';
-      const isTopK = visual.showTopK && p.highlight;
-      return (
-        <g
-          data-node-title={`vector ${p.id} (layer ${p.layer})${isTopK ? ' — top-k' : ''}`}
-          tabindex="0"
-          role="button"
-          aria-label={`vector ${p.id}`}
-        >
-          {isTopK && (
-            <circle cx={p.x} cy={p.y} r={12} fill="none" stroke="#f5a623" stroke-width="2" />
-          )}
-          <circle cx={p.x} cy={p.y} r={p.layer === 2 ? 8 : 7} fill={color} />
-        </g>
-      );
-    })
+  const BANDS = [
+    { yc: 0.14, spread: 0.06 },
+    { yc: 0.46, spread: 0.1 },
+    { yc: 0.81, spread: 0.12 },
+  ];
+  const FILTER = (id: number) => id % 2 === 0;
+
+  // One engine instance per controls block; the SVG it drives is the sibling
+  // static diagram above it.
+  const engines = Array.from(document.querySelectorAll<Mount>('[data-hnsw-controls]'));
+  for (const panel of engines) {
+    const mount = panel.parentElement?.querySelector<Mount>('[data-hnsw-gpu]') ?? null;
+    const svg = mount?.querySelector<SVGSVGElement>('svg');
+    const seed = clampInt(panel.dataset.seed, 4242, 0, 65535);
+    const count = clampInt(
+      panel.closest('[data-count]')?.getAttribute('data-count') ?? '',
+      24,
+      4,
+      64,
+    );
+
+    const graph = buildHnsw(toyVectors(seed, count), seed, { m: 3, maxLevel: 2 });
+    const useFilter = svg?.dataset.vectorShowPayload === 'true';
+    const showTopK = svg?.dataset.vectorShowTopk !== 'false';
+
+    let k = clampInt(panel.dataset.k, 4, 1, 6);
+    let ef = clampInt(panel.dataset.ef, 16, 2, 28);
+    let query = { x: 0.5, y: 0.42 };
+    let trace: SearchTrace = hnswSearch(graph, query, {
+      k,
+      ef,
+      filter: useFilter ? FILTER : undefined,
+    });
+    let exact = exactSearch(graph.points, query, k, useFilter ? FILTER : undefined);
+    let stepIdx = trace.steps.length - 1;
+    let playing = false;
+    let timer: number | undefined;
+
+    const caption = panel.querySelector('[data-step-caption]');
+    const stats = panel.querySelector('[data-hnsw-stats]');
+    const playBtn = panel.querySelector<HTMLButtonElement>('[data-ctrl="play"]');
+    const kOut = panel.querySelector('[data-kout]');
+    const efOut = panel.querySelector('[data-efout]');
+
+    function bandPoint(layer: number, p: { x: number; y: number }) {
+      const band = BANDS[Math.min(layer, BANDS.length - 1)];
+      return { x: 0.04 + p.x * 0.92, y: band.yc + (p.y * 2 - 1) * band.spread };
+    }
+
+    /** Apply trace state up to stepIdx onto the static SVG. */
+    function render(): void {
+      if (!svg) return;
+      const upto = trace.steps.slice(0, stepIdx + 1);
+      const visited = new Set<number>();
+      const walkHops: Array<{ layer: number; a: number; b: number }> = [];
+      let evals = 0;
+      for (const s of upto) {
+        if (s.kind === 'entry') visited.add(s.id);
+        else if (s.kind === 'greedy') {
+          visited.add(s.to);
+          walkHops.push({ layer: s.layer, a: s.from, b: s.to });
+          evals += s.evaluated.length;
+        } else if (s.kind === 'descend') visited.add(s.id);
+        else if (s.kind === 'expand') {
+          evals += s.evaluated.length;
+          for (const kk of s.kept) visited.add(kk);
+        }
+      }
+
+      // walk edges: show hops recorded up to the current step
+      const walkGroup = svg.querySelector('[data-walk]');
+      if (walkGroup) {
+        const shown = walkHops.length;
+        walkGroup.querySelectorAll<SVGLineElement>('[data-walk-edge]').forEach((el, i) => {
+          el.style.opacity = i < shown ? '1' : '0';
+        });
+      }
+
+      // node states
+      svg.querySelectorAll<SVGGElement>('[data-nid]').forEach((g) => {
+        const [layerStr, idStr] = (g.dataset.nid ?? '0:-1').split(':');
+        const layer = parseInt(layerStr, 10);
+        const id = parseInt(idStr, 10);
+        const isResult =
+          showTopK && layer === 0 && stepIdx >= trace.steps.length - 1 && trace.topK.includes(id);
+        const wasVisited = layer === 0 && visited.has(id);
+        const ring = g.querySelector<SVGCircleElement>('[data-topk-ring]');
+        if (ring) ring.style.opacity = isResult ? '1' : '0';
+        const vring = g.querySelector<SVGCircleElement>('[data-visited-ring]');
+        if (vring) {
+          if (isResult) {
+            vring.style.opacity = '0';
+          } else {
+            vring.style.opacity = wasVisited ? '1' : '0';
+          }
+        }
+      });
+
+      if (caption) caption.textContent = upto[upto.length - 1]?.note ?? '';
+      const currentRecall = recall(stepIdx >= trace.steps.length - 1 ? trace.topK : [], exact.ids);
+      if (stats) {
+        stats.textContent =
+          `distance evals ${evals} · visited ${visited.size}/${graph.points.length} · ` +
+          `recall ${currentRecall.toFixed(2)} vs exact${useFilter ? ' (filtered)' : ''} (k=${k}, ef=${ef})`;
+      }
+      if (playBtn) {
+        playBtn.textContent = playing ? '❚❚ pause' : '▶ play';
+        playBtn.setAttribute('aria-pressed', String(playing));
+      }
+      // GPU phase follows the step cursor.
+      if (mount) {
+        mount.dispatchEvent(
+          new CustomEvent('hnsw-step', {
+            detail: { phase: (upto.length / Math.max(1, trace.steps.length)) * 0.92 },
+          }),
+        );
+      }
+    }
+
+    function recompute(): void {
+      trace = hnswSearch(graph, query, { k, ef, filter: useFilter ? FILTER : undefined });
+      exact = exactSearch(graph.points, query, k, useFilter ? FILTER : undefined);
+      stepIdx = trace.steps.length - 1;
+      // Move the query glyph.
+      if (svg) {
+        const qg = svg.querySelector<SVGGElement>('[data-query]');
+        if (qg) {
+          const bp = bandPoint(0, query);
+          const cx = (bp.x * 720).toFixed(1);
+          const cy = (bp.y * 360).toFixed(1);
+          qg.querySelectorAll('circle').forEach((c) => c.setAttribute('cx', cx));
+          qg.querySelectorAll('circle').forEach((c) => c.setAttribute('cy', cy));
+          const label = qg.querySelector('text');
+          if (label) {
+            label.setAttribute('x', String(parseFloat(cx) + 18));
+            label.setAttribute('y', String(parseFloat(cy) + 4));
+          }
+        }
+      }
+      if (kOut) kOut.textContent = String(k);
+      if (efOut) efOut.textContent = String(ef);
+      render();
+    }
+
+    function stopPlay(): void {
+      playing = false;
+      if (timer !== undefined) {
+        window.clearInterval(timer);
+        timer = undefined;
+      }
+      if (mount) mount.dispatchEvent(new CustomEvent('hnsw-play', { detail: { playing: false } }));
+    }
+
+    panel.addEventListener('click', (ev) => {
+      const btn = (ev.target as HTMLElement).closest?.('[data-ctrl]');
+      if (!btn) return;
+      const kind = btn.getAttribute('data-ctrl');
+      if (kind === 'play') {
+        playing = !playing;
+        if (playing) {
+          if (stepIdx >= trace.steps.length - 1) stepIdx = 0;
+          timer = window.setInterval(() => {
+            if (stepIdx >= trace.steps.length - 1) stopPlay();
+            else stepIdx++;
+            render();
+          }, 1200);
+        } else {
+          stopPlay();
+        }
+      } else if (kind === 'next') {
+        stopPlay();
+        stepIdx = Math.min(trace.steps.length - 1, stepIdx + 1);
+      } else if (kind === 'prev') {
+        stopPlay();
+        stepIdx = Math.max(0, stepIdx - 1);
+      } else if (kind === 'reset') {
+        stopPlay();
+        stepIdx = 0;
+      }
+      render();
+    });
+
+    for (const input of Array.from(panel.querySelectorAll<HTMLInputElement>('[data-param]'))) {
+      input.addEventListener('input', () => {
+        stopPlay();
+        if (input.dataset.param === 'k') k = clampInt(input.value, 4, 1, 6);
+        if (input.dataset.param === 'ef') ef = clampInt(input.value, 16, 2, 28);
+        recompute();
+      });
+    }
+
+    // Click the static diagram to move the query (when the GPU canvas is not
+    // covering it; with GPU active the canvas owns clicks for replay).
+    if (svg) {
+      svg.addEventListener('click', (ev) => {
+        if (mount && mount.dataset.gpuState === 'on') return;
+        const r = svg.getBoundingClientRect();
+        if (r.width <= 0 || r.height <= 0) return;
+        const nx = ((ev.clientX - r.left) / r.width) * 720;
+        const ny = ((ev.clientY - r.top) / r.height) * 360;
+        query = {
+          x: Math.min(0.96, Math.max(0.04, (nx / 720 - 0.04) / 0.92)),
+          y: Math.min(0.96, Math.max(0.04, ((ny / 360 - BANDS[2].yc) / BANDS[2].spread + 1) / 2)),
+        };
+        stopPlay();
+        recompute();
+      });
+    }
+
+    render();
   }
 
-  {/* query traversal path (HNSW only) */}
-  {
-    isHnsw && (
-      <g>
-        <path
-          d="M650,30 L110,60 L220,150 L180,290"
-          fill="none"
-          stroke="#f5a623"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-dasharray="8 4"
-          class="dh-dash"
-        />
-        <text x={650} y={22} fill="#f5a623" font-size="11" font-family="ui-monospace, monospace">
-          query q
-        </text>
-      </g>
-    )
-  }
+  // ---- GPU flagship (hnsw mode) -----------------------------------------
+  const stash = (window as { __HNSW_WGSL__?: { bg: string; nodes: string; edges: string } })
+    .__HNSW_WGSL__;
+  const mounts = Array.from(document.querySelectorAll<Mount>('[data-hnsw-gpu]'));
 
-  {/* IVF-PQ query */}
-  {
-    isIvf && (
-      <g>
-        <text
-          x={viewW - 20}
-          y={viewH - 10}
-          text-anchor="end"
-          fill="#f5a623"
-          font-size="11"
-          font-family="ui-monospace, monospace"
-        >
-          query q → nearest centroid → rerank candidates
-        </text>
-      </g>
-    )
-  }
+  for (const el of mounts) {
+    const canvas = el.querySelector('canvas');
+    if (!canvas || !stash || stash.nodes.length === 0) continue;
 
-  {/* legend strip */}
-  <g>
-    <rect x={20} y={viewH - 16} width={viewW - 40} height={2} fill="#1f2733"></rect>
-  </g>
-</svg>
+    const nodeCount = clampInt(el.dataset.nodes, 90, 1, 8192);
+    const edgeCount = clampInt(el.dataset.edges, 250, 0, 16384);
+    const fps = clampInt(el.dataset.fps, 30, 8, 60);
+
+    // Shared step/play state consumed by the render loop.
+    let stepPhase = -1;
+    let playingCycle = true;
+    el.addEventListener('hnsw-step', (ev) => {
+      const phase = (ev as CustomEvent<{ phase: number }>).detail?.phase;
+      if (typeof phase === 'number') {
+        stepPhase = phase;
+        playingCycle = false;
+      }
+    });
+    el.addEventListener('hnsw-play', (ev) => {
+      playingCycle = (ev as CustomEvent<{ playing: boolean }>).detail?.playing !== false;
+      if (playingCycle) stepPhase = -1;
+    });
+
+    mountGpuScene({
+      el,
+      canvas,
+      fps,
+      build: async ({ vgpu, gpu, surface, clock }) => {
+        const bg = vgpu.effect(gpu, stash.bg, {
+          set: { params: { time: 0, mx: -1, my: -1, hover: 0 } },
+        });
+        const edgeDraw = vgpu.draw(gpu, {
+          shader: stash.edges,
+          instances: edgeCount,
+          vertices: 6,
+        });
+        const nodeDraw = vgpu.draw(gpu, {
+          shader: stash.nodes,
+          instances: nodeCount,
+          vertices: 6,
+        });
+        const chain = createBloomChain(vgpu, gpu, surface.size);
+        await Promise.all([
+          bg.compile({ colors: ['rgba16float'] }),
+          edgeDraw.compile({ colors: ['rgba16float'] }),
+          nodeDraw.compile({ colors: ['rgba16float'] }),
+          chain.prewarm(surface.format),
+        ]);
+
+        let mx = -1;
+        let my = -1;
+        let hover = 0;
+        let timeBase = 0;
+
+        const onMove = (ev: PointerEvent) => {
+          const r = el.getBoundingClientRect();
+          if (r.width <= 0 || r.height <= 0) return;
+          mx = (ev.clientX - r.left) / r.width;
+          my = 1 - (ev.clientY - r.top) / r.height;
+          hover = 1;
+        };
+        const onLeave = () => {
+          hover = 0;
+        };
+        const onClick = () => {
+          timeBase = clock.time;
+          stepPhase = -1;
+          playingCycle = true;
+        };
+        el.addEventListener('pointermove', onMove);
+        el.addEventListener('pointerleave', onLeave);
+        el.addEventListener('click', onClick);
+
+        let lastW = -1;
+        let lastH = -1;
+        return {
+          render(frame, time) {
+            const [sw, sh] = surface.size;
+            if (sw !== lastW || sh !== lastH) {
+              lastW = sw;
+              lastH = sh;
+              chain.resize(surface.size);
+            }
+            const cyc = playingCycle ? -1 : stepPhase;
+            const params = { time: time - timeBase, mx, my, hover, stepPhase: cyc };
+            bg.set({ params: { time: time - timeBase, mx, my, hover } });
+            edgeDraw.set({ params });
+            nodeDraw.set({ params });
+            frame.pass({ target: chain.scene }, (p) => {
+              p.draw(bg);
+              p.draw(edgeDraw);
+              p.draw(nodeDraw);
+            });
+            chain.render(frame, surface, { strength: 1.15, time });
+          },
+          destroy() {
+            el.removeEventListener('pointermove', onMove);
+            el.removeEventListener('pointerleave', onLeave);
+            el.removeEventListener('click', onClick);
+            chain.destroy();
+          },
+        };
+      },
+      onActive() {
+        el.dataset.gpuState = 'on';
+        canvas.style.opacity = '1';
+        const stat = el.querySelector('[data-hnsw-static]');
+        if (stat) {
+          (stat as HTMLElement).style.opacity = '0';
+          (stat as HTMLElement).style.pointerEvents = 'none';
+          stat.setAttribute('aria-hidden', 'true');
+        }
+        const labels = el.querySelector('[data-hnsw-labels]');
+        if (labels) (labels as HTMLElement).hidden = false;
+      },
+      onFallback(reason) {
+        canvas.style.opacity = '0';
+        el.dataset.gpuState =
+          reason === 'error' ? 'error' : reason === 'device-lost' ? 'device-lost' : 'off';
+        const stat = el.querySelector('[data-hnsw-static]');
+        if (stat) {
+          (stat as HTMLElement).style.opacity = '1';
+          (stat as HTMLElement).style.pointerEvents = 'auto';
+          stat.removeAttribute('aria-hidden');
+        }
+        const labels = el.querySelector('[data-hnsw-labels]');
+        if (labels) (labels as HTMLElement).hidden = true;
+      },
+    });
+  }
+</script>
