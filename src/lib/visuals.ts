@@ -25,6 +25,7 @@ import GpuMetrics from '../components/visuals/GpuMetrics.astro';
 import TimeSeries from '../components/visuals/TimeSeries.astro';
 import IndexStats from '../components/visuals/IndexStats.astro';
 import QueryPlan from '../components/visuals/QueryPlan.astro';
+import Walkthrough from '../components/visuals/Walkthrough.astro';
 
 import {
   VISUAL_KINDS,
@@ -62,6 +63,7 @@ export const VISUAL_REGISTRY: Readonly<Record<RegisteredVisualKind, AstroCompone
     'page-microscope': PageMicroscope as unknown as AstroComponent,
     'wal-timeline': WalTimeline as unknown as AstroComponent,
     'vector-index': VectorIndexPlayground as unknown as AstroComponent,
+    walkthrough: Walkthrough as unknown as AstroComponent,
     'family-map': DatabaseFamilyMap as unknown as AstroComponent,
     legend: LegendPanel as unknown as AstroComponent,
     'gpu-scene': GpuScene as unknown as AstroComponent,

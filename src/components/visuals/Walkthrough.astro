@@ -1,0 +1,1180 @@
+---
+/**
+ * Walkthrough -- stepwise, narrated algorithm walkthrough (SVG + controls).
+ *
+ * One component, five method families, driven entirely by the deterministic
+ * traces in src/lib/walkthroughs/:
+ *   btree-split / btree-search  — B+ tree routing, leaf overflow, separator copy
+ *   lsm-compaction / lsm-overwrite — memtable, immutable runs, tombstones, merge
+ *   mvcc-commit                 — version visibility, WAL commit boundary, recovery
+ *   graph-bfs                   — FIFO frontier, direction, shortest-path property
+ *   columnar-scan               — column pruning, granule skipping, block predicates
+ *
+ * Rendering contract:
+ *  - The server renders the FINAL state (every reveal element visible) plus the
+ *    full step list and the state summary, so no-JS visitors get the complete
+ *    explanation.
+ *  - The client replays the same trace: elements tagged data-wt appear as their
+ *    step is reached; play/pause/step/reset work discretely, so reduced-motion
+ *    visitors get the full walkthrough without continuous animation.
+ *  - Algorithmic state lives only in the trace; the SVG never invents results.
+ */
+import type { VisualWalkthrough } from '../../lib/schema';
+import { btreeTrace, btreeRenderModel } from '../../lib/walkthroughs/btree';
+import { lsmTrace, lsmRenderModel } from '../../lib/walkthroughs/lsm';
+import { mvccTrace } from '../../lib/walkthroughs/mvcc';
+import {
+  graphBfsTrace,
+  GRAPH_NODES,
+  GRAPH_EDGES,
+  type BfsTarget,
+} from '../../lib/walkthroughs/graph-bfs';
+import {
+  columnarTrace,
+  columnarModel,
+  type ColumnarVariant,
+} from '../../lib/walkthroughs/columnar';
+import type { WtTrace } from '../../lib/walkthroughs/types';
+
+interface Props {
+  visual: VisualWalkthrough;
+}
+
+const { visual } = Astro.props;
+const alt = visual.variant === 'alt';
+
+const trace: WtTrace = (() => {
+  switch (visual.mode) {
+    case 'btree-split':
+      return btreeTrace('insert-split');
+    case 'btree-search':
+      return btreeTrace('search');
+    case 'lsm-compaction':
+      return lsmTrace('delete');
+    case 'lsm-overwrite':
+      return lsmTrace('overwrite');
+    case 'mvcc-commit':
+      return mvccTrace(alt ? 'crash-after-commit' : 'crash-before-commit');
+    case 'graph-bfs':
+      return graphBfsTrace((alt ? 'E' : 'F') as BfsTarget);
+    case 'columnar-scan':
+      return columnarTrace((alt ? 'full-scan' : 'range-filter') as ColumnarVariant);
+  }
+})();
+
+const modeFamily =
+  visual.mode.startsWith('btree') || visual.mode === 'btree-search'
+    ? 'btree'
+    : visual.mode.startsWith('lsm')
+      ? 'lsm'
+      : visual.mode.startsWith('mvcc')
+        ? 'mvcc'
+        : visual.mode.startsWith('graph')
+          ? 'graph'
+          : 'columnar';
+
+const W = 720;
+const H = 340;
+
+/* ---------------- btree render data ---------------- */
+const bt = btreeRenderModel();
+const btBefore = bt.before;
+const nodeBox = (x: number, y: number, keys: number[], w = 150) => ({ x, y, keys, w });
+
+/* ---------------- lsm render data ---------------- */
+const lsm = lsmRenderModel();
+
+/* ---------------- columnar render data ---------------- */
+const col = columnarModel(alt ? 'full-scan' : 'range-filter');
+const colSkipped = alt ? 0 : 5;
+const colLoaded = col.granules - colSkipped;
+const colRowPass = col.passingRows;
+
+const toPx = (nx: number, ny: number, w = W, h = H) => ({ x: nx * w, y: ny * h });
+---
+
+<div class="dh-walkthrough" data-wt-panel data-trace={JSON.stringify(trace)}>
+  <div class="overflow-hidden rounded-lg border border-[var(--color-border)] bg-[#0a0e13] p-2">
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      role="img"
+      aria-label={`${visual.title} — ${visual.description}`}
+      class="h-auto w-full"
+      data-wt-svg
+    >
+      <defs>
+        <marker
+          id="wt-arrow"
+          viewBox="0 0 10 10"
+          refX="9"
+          refY="5"
+          markerWidth="7"
+          markerHeight="7"
+          orient="auto-start-reverse"
+        >
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b95a7"></path>
+        </marker>
+        <marker
+          id="wt-arrow-amber"
+          viewBox="0 0 10 10"
+          refX="9"
+          refY="5"
+          markerWidth="7"
+          markerHeight="7"
+          orient="auto-start-reverse"
+        >
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#f5a623"></path>
+        </marker>
+      </defs>
+
+      {
+        modeFamily === 'btree' && visual.mode === 'btree-split' && (
+          <g font-family="ui-monospace, monospace">
+            <text x={20} y={18} fill="#8b95a7" font-size="11">
+              before
+            </text>
+            <text x={400} y={18} fill="#8b95a7" font-size="11">
+              after
+            </text>
+            {/* before tree */}
+            {(() => {
+              const root = nodeBox(105, 30, btBefore[0].keys, 130);
+              return (
+                <g>
+                  <rect
+                    x={root.x}
+                    y={root.y}
+                    width={root.w}
+                    height={30}
+                    rx={6}
+                    fill="#161c25"
+                    stroke="#7c5cff"
+                  />
+                  <text x={root.x + 8} y={root.y + 20} fill="#e6ebf4" font-size="12">
+                    root [{root.keys.join(', ')}]
+                  </text>
+                  <g data-wt="wt-bt-cmp-root">
+                    <circle
+                      cx={root.x + root.w / 2}
+                      cy={root.y + 15}
+                      r={26}
+                      fill="none"
+                      stroke="#f5a623"
+                      stroke-width="1.5"
+                    />
+                    <text x={root.x + root.w + 12} y={root.y + 20} fill="#f5a623" font-size="10">
+                      6 &lt; 10 → left
+                    </text>
+                  </g>
+                  {btBefore.slice(1).map((n, i) => {
+                    const bx = 30 + i * 115;
+                    const by = 120;
+                    return (
+                      <g>
+                        <line
+                          x1={root.x + root.w / 2}
+                          y1={60}
+                          x2={bx + 55}
+                          y2={by}
+                          stroke="#3a4356"
+                          marker-end="url(#wt-arrow)"
+                        />
+                        <rect
+                          x={bx}
+                          y={by}
+                          width={110}
+                          height={28}
+                          rx={6}
+                          fill="#161c25"
+                          stroke={n.id === 'l1' ? '#ff5d8f' : '#3a4356'}
+                        />
+                        <text x={bx + 8} y={by + 19} fill="#e6ebf4" font-size="11">
+                          {n.id} [{n.keys.join(', ')}]
+                        </text>
+                        {n.id === 'l1' && (
+                          <g data-wt="wt-bt-l1-before">
+                            <circle
+                              cx={bx + 55}
+                              cy={by + 14}
+                              r={22}
+                              fill="none"
+                              stroke="#f5a623"
+                              stroke-width="1.5"
+                            />
+                          </g>
+                        )}
+                      </g>
+                    );
+                  })}
+                  <g data-wt="wt-bt-l1-insert">
+                    <rect
+                      x={30}
+                      y={165}
+                      width={200}
+                      height={28}
+                      rx={6}
+                      fill="#1a2130"
+                      stroke="#ff5d8f"
+                    />
+                    <text x={38} y={184} fill="#e6ebf4" font-size="11">
+                      L1 after insert [2, 5, 6, 8]
+                    </text>
+                  </g>
+                  <g data-wt="wt-bt-overflow">
+                    <rect
+                      x={30}
+                      y={205}
+                      width={200}
+                      height={26}
+                      rx={6}
+                      fill="#2a1219"
+                      stroke="#ff5d8f"
+                    />
+                    <text x={38} y={223} fill="#ff5d8f" font-size="11">
+                      overflow: 4 keys &gt; max 3 → split
+                    </text>
+                  </g>
+                </g>
+              );
+            })()}
+            {/* after tree */}
+            <g data-wt="wt-bt-split">
+              {(() => {
+                const n1 = nodeBox(395, 120, [2, 5], 100);
+                const n2 = nodeBox(515, 120, [6, 8], 100);
+                return (
+                  <g>
+                    <rect
+                      x={n1.x}
+                      y={n1.y}
+                      width={n1.w}
+                      height={28}
+                      rx={6}
+                      fill="#1a2130"
+                      stroke="#00ffe1"
+                    />
+                    <text x={n1.x + 8} y={n1.y + 19} fill="#e6ebf4" font-size="11">
+                      L1a [{n1.keys.join(', ')}]
+                    </text>
+                    <rect
+                      x={n2.x}
+                      y={n2.y}
+                      width={n2.w}
+                      height={28}
+                      rx={6}
+                      fill="#1a2130"
+                      stroke="#00ffe1"
+                    />
+                    <text x={n2.x + 8} y={n2.y + 19} fill="#e6ebf4" font-size="11">
+                      L1b [{n2.keys.join(', ')}]
+                    </text>
+                    <text x={395} y={170} fill="#8b95a7" font-size="10">
+                      leaf split — order preserved
+                    </text>
+                  </g>
+                );
+              })()}
+            </g>
+            <g data-wt="wt-bt-root-after">
+              {(() => {
+                const root = nodeBox(420, 30, [6, 10, 20], 170);
+                return (
+                  <g>
+                    <rect
+                      x={root.x}
+                      y={root.y}
+                      width={root.w}
+                      height={30}
+                      rx={6}
+                      fill="#161c25"
+                      stroke="#f5a623"
+                    />
+                    <text x={root.x + 8} y={root.y + 20} fill="#e6ebf4" font-size="12">
+                      root [{root.keys.join(', ')}]
+                    </text>
+                    <text x={root.x + root.w + 10} y={root.y + 20} fill="#f5a623" font-size="10">
+                      ← 6 copied up
+                    </text>
+                    <line
+                      x1={root.x + 30}
+                      y1={60}
+                      x2={445}
+                      y2={118}
+                      stroke="#3a4356"
+                      marker-end="url(#wt-arrow)"
+                    />
+                    <line
+                      x1={root.x + 80}
+                      y1={60}
+                      x2={565}
+                      y2={118}
+                      stroke="#3a4356"
+                      marker-end="url(#wt-arrow)"
+                    />
+                    <line
+                      x1={root.x + 130}
+                      y1={60}
+                      x2={655}
+                      y2={118}
+                      stroke="#3a4356"
+                      marker-end="url(#wt-arrow)"
+                    />
+                  </g>
+                );
+              })()}
+            </g>
+            <g data-wt="wt-bt-summary">
+              <rect
+                x={400}
+                y={200}
+                width={280}
+                height={26}
+                rx={6}
+                fill="#10201c"
+                stroke="#00ffe1"
+              />
+              <text x={408} y={218} fill="#00ffe1" font-size="11">
+                height unchanged · 3 nodes rewritten · data stays in leaves
+              </text>
+            </g>
+          </g>
+        )
+      }
+
+      {
+        modeFamily === 'btree' && visual.mode === 'btree-search' && (
+          <g font-family="ui-monospace, monospace">
+            {(() => {
+              const root = nodeBox(105, 40, [10, 20], 130);
+              return (
+                <g>
+                  <rect
+                    x={root.x}
+                    y={root.y}
+                    width={root.w}
+                    height={30}
+                    rx={6}
+                    fill="#161c25"
+                    stroke="#7c5cff"
+                  />
+                  <text x={root.x + 8} y={root.y + 20} fill="#e6ebf4" font-size="12">
+                    root [{root.keys.join(', ')}]
+                  </text>
+                  <g data-wt="wt-bt-cmp-root">
+                    <circle
+                      cx={root.x + root.w / 2}
+                      cy={root.y + 15}
+                      r={26}
+                      fill="none"
+                      stroke="#f5a623"
+                      stroke-width="1.5"
+                    />
+                    <text x={root.x + root.w + 12} y={root.y + 20} fill="#f5a623" font-size="10">
+                      10 ≤ 12 &lt; 20 → middle
+                    </text>
+                  </g>
+                  <g data-wt="wt-bt-path-l2">
+                    <line
+                      x1={root.x + 40}
+                      y1={70}
+                      x2={280}
+                      y2={130}
+                      stroke="#f5a623"
+                      stroke-width="2"
+                      marker-end="url(#wt-arrow-amber)"
+                    />
+                    <line
+                      x1={root.x + 100}
+                      y1={70}
+                      x2={430}
+                      y2={130}
+                      stroke="#f5a623"
+                      stroke-width="2"
+                      marker-end="url(#wt-arrow-amber)"
+                    />
+                  </g>
+                  {[0, 1, 2].map((i) => {
+                    const bx = 30 + i * 130;
+                    const names = ['L1', 'L2', 'L3'];
+                    const keys = [
+                      [2, 5, 8],
+                      [10, 12, 15],
+                      [20, 25, 30],
+                    ][i];
+                    return (
+                      <g>
+                        <rect
+                          x={bx}
+                          y={130}
+                          width={110}
+                          height={28}
+                          rx={6}
+                          fill="#161c25"
+                          stroke={i === 1 ? '#f5a623' : '#3a4356'}
+                        />
+                        <text x={bx + 8} y={149} fill="#e6ebf4" font-size="11">
+                          {names[i]} [{keys.join(', ')}]
+                        </text>
+                      </g>
+                    );
+                  })}
+                  <g data-wt="wt-bt-found">
+                    <rect
+                      x={185}
+                      y={170}
+                      width={120}
+                      height={26}
+                      rx={6}
+                      fill="#10201c"
+                      stroke="#00ffe1"
+                    />
+                    <text x={193} y={188} fill="#00ffe1" font-size="11">
+                      12 found in L2
+                    </text>
+                  </g>
+                  <g data-wt="wt-bt-summary">
+                    <rect
+                      x={30}
+                      y={220}
+                      width={260}
+                      height={26}
+                      rx={6}
+                      fill="#10201c"
+                      stroke="#00ffe1"
+                    />
+                    <text x={38} y={238} fill="#00ffe1" font-size="11">
+                      2 pages touched · 5 comparisons total
+                    </text>
+                  </g>
+                </g>
+              );
+            })()}
+          </g>
+        )
+      }
+
+      {
+        modeFamily === 'lsm' && (
+          <g font-family="ui-monospace, monospace">
+            {/* memtable */}
+            <rect x={20} y={30} width={190} height={130} rx={8} fill="#11161d" stroke="#3a4356" />
+            <text x={30} y={50} fill="#8b95a7" font-size="11">
+              memtable (memory)
+            </text>
+            <g data-wt="wt-lsm-mem-c5">
+              <rect x={30} y={60} width={80} height={22} rx={4} fill="#1a2130" stroke="#5cffb1" />
+              <text x={38} y={75} fill="#e6ebf4" font-size="11">
+                c = 5
+              </text>
+            </g>
+            <g data-wt="wt-lsm-mem-c7">
+              <rect x={118} y={60} width={80} height={22} rx={4} fill="#1a2130" stroke="#5cffb1" />
+              <text x={126} y={75} fill="#e6ebf4" font-size="11">
+                c = 7
+              </text>
+            </g>
+            {visual.mode === 'lsm-compaction' && (
+              <g data-wt="wt-lsm-mem-tomb">
+                <rect
+                  x={30}
+                  y={92}
+                  width={168}
+                  height={22}
+                  rx={4}
+                  fill="#2a1219"
+                  stroke="#ff5d8f"
+                />
+                <text x={38} y={107} fill="#ff5d8f" font-size="11">
+                  c = ⊥ (tombstone)
+                </text>
+              </g>
+            )}
+            <g data-wt="wt-lsm-wal">
+              <rect x={20} y={290} width={330} height={26} rx={6} fill="#10201c" stroke="#00ffe1" />
+              <text x={28} y={308} fill="#00ffe1" font-size="11">
+                WAL — every put/delete appended here before the memtable ack
+              </text>
+            </g>
+            {/* runs */}
+            {lsm.runsInitial.map((r, i) => (
+              <g>
+                <rect
+                  x={240}
+                  y={30 + i * 66}
+                  width={190}
+                  height={56}
+                  rx={8}
+                  fill="#11161d"
+                  stroke="#3a4356"
+                />
+                <text x={250} y={50 + i * 66} fill="#8b95a7" font-size="10">
+                  {r.label}
+                </text>
+                {r.items.map((it, j) => (
+                  <rect
+                    x={250 + j * 85}
+                    y={58 + i * 66}
+                    width={78}
+                    height={20}
+                    rx={4}
+                    fill="#1a2130"
+                    stroke="#3a4356"
+                  />
+                ))}
+                {r.items.map((it, j) => (
+                  <text x={256 + j * 85} y={72 + i * 66} fill="#e6ebf4" font-size="10">
+                    {it}
+                  </text>
+                ))}
+              </g>
+            ))}
+            <g data-wt="wt-lsm-r3">
+              <rect
+                x={240}
+                y={162}
+                width={190}
+                height={40}
+                rx={8}
+                fill="#11161d"
+                stroke="#f5a623"
+              />
+              <text x={250} y={178} fill="#f5a623" font-size="10">
+                R3 (L0, newest — flushed)
+              </text>
+              <rect x={250} y={182} width={78} height={16} rx={4} fill="#1a2130" stroke="#3a4356" />
+              <text x={256} y={194} fill="#e6ebf4" font-size="10">
+                c = 7
+              </text>
+            </g>
+            {visual.mode === 'lsm-compaction' && (
+              <g data-wt="wt-lsm-r4">
+                <rect
+                  x={240}
+                  y={208}
+                  width={190}
+                  height={40}
+                  rx={8}
+                  fill="#11161d"
+                  stroke="#ff5d8f"
+                />
+                <text x={250} y={224} fill="#ff5d8f" font-size="10">
+                  R4 (L0 — tombstone)
+                </text>
+                <rect
+                  x={250}
+                  y={228}
+                  width={110}
+                  height={16}
+                  rx={4}
+                  fill="#1a2130"
+                  stroke="#3a4356"
+                />
+                <text x={256} y={240} fill="#e6ebf4" font-size="10">
+                  c = ⊥
+                </text>
+              </g>
+            )}
+            {/* L1 before + after */}
+            <rect x={470} y={30} width={220} height={56} rx={8} fill="#11161d" stroke="#3a4356" />
+            <text x={480} y={50} fill="#8b95a7" font-size="10">
+              L1 (merged run)
+            </text>
+            <text
+              x={480}
+              y={72}
+              fill="#e6ebf4"
+              font-size="11"
+            >{`{ ${lsm.l1Initial.join(', ')} }`}</text>
+            {visual.mode === 'lsm-compaction' && (
+              <g data-wt="wt-lsm-l1-after">
+                <rect
+                  x={470}
+                  y={100}
+                  width={230}
+                  height={78}
+                  rx={8}
+                  fill="#10201c"
+                  stroke="#00ffe1"
+                />
+                <text x={480} y={120} fill="#00ffe1" font-size="10">
+                  L1 after compaction
+                </text>
+                <text
+                  x={480}
+                  y={142}
+                  fill="#e6ebf4"
+                  font-size="11"
+                >{`{ ${lsm.l1After.join(', ')} }`}</text>
+                <text x={480} y={164} fill="#8b95a7" font-size="9">
+                  c dropped: shadowed by tombstone, tombstone expired
+                </text>
+              </g>
+            )}
+            {/* lookup annotations */}
+            <g data-wt="wt-lsm-lk1">
+              <rect x={20} y={170} width={200} height={24} rx={6} fill="#10201c" stroke="#00ffe1" />
+              <text x={28} y={187} fill="#00ffe1" font-size="10">
+                lookup(c): memtable → 7 (1 struct)
+              </text>
+            </g>
+            <g data-wt="wt-lsm-lk2">
+              <rect x={20} y={200} width={210} height={24} rx={6} fill="#10201c" stroke="#00ffe1" />
+              <text x={28} y={217} fill="#00ffe1" font-size="10">
+                lookup(d): miss → miss → R2 → 4
+              </text>
+            </g>
+            {visual.mode === 'lsm-compaction' && (
+              <g data-wt="wt-lsm-lk3">
+                <rect
+                  x={20}
+                  y={230}
+                  width={210}
+                  height={24}
+                  rx={6}
+                  fill="#2a1219"
+                  stroke="#ff5d8f"
+                />
+                <text x={28} y={247} fill="#ff5d8f" font-size="10">
+                  lookup(c): R4 tombstone → not found
+                </text>
+              </g>
+            )}
+            {visual.mode === 'lsm-overwrite' && (
+              <g data-wt="wt-lsm-lk4">
+                <rect
+                  x={20}
+                  y={230}
+                  width={210}
+                  height={24}
+                  rx={6}
+                  fill="#10201c"
+                  stroke="#00ffe1"
+                />
+                <text x={28} y={247} fill="#00ffe1" font-size="10">
+                  lookup(a): 4 structs → R1 → 1
+                </text>
+              </g>
+            )}
+            {visual.mode === 'lsm-compaction' && (
+              <g data-wt="wt-lsm-summary">
+                <rect
+                  x={20}
+                  y={262}
+                  width={430}
+                  height={22}
+                  rx={6}
+                  fill="#10201c"
+                  stroke="#00ffe1"
+                />
+                <text x={28} y={278} fill="#00ffe1" font-size="10">
+                  compaction traded write amplification for read speed — one version per key remains
+                </text>
+              </g>
+            )}
+          </g>
+        )
+      }
+
+      {
+        modeFamily === 'mvcc' && (
+          <g font-family="ui-monospace, monospace">
+            {/* version chain */}
+            <rect x={20} y={40} width={220} height={44} rx={8} fill="#161c25" stroke="#7c5cff" />
+            <text x={30} y={60} fill="#e6ebf4" font-size="11">
+              v1: balance = 100 (xmin = 10)
+            </text>
+            <text x={30} y={76} fill="#8b95a7" font-size="9">
+              visible to snapshots before A
+            </text>
+            <g data-wt="wt-mv-v2">
+              <rect x={20} y={110} width={220} height={44} rx={8} fill="#1a2130" stroke="#f5a623" />
+              <text x={30} y={130} fill="#e6ebf4" font-size="11">
+                v2: balance = 250 (xmin = 100)
+              </text>
+              <text x={30} y={146} fill="#8b95a7" font-size="9">
+                written by tx A — visibility depends on commit
+              </text>
+              <line
+                x1={130}
+                y1={84}
+                x2={130}
+                y2={108}
+                stroke="#8b95a7"
+                marker-end="url(#wt-arrow)"
+              />
+            </g>
+            {/* readers */}
+            <g data-wt="wt-mv-readerB">
+              <rect x={280} y={40} width={230} height={30} rx={6} fill="#10201c" stroke="#00ffe1" />
+              <text x={288} y={60} fill="#00ffe1" font-size="11">
+                reader B (old snapshot) sees 100
+              </text>
+            </g>
+            {visual.variant === 'alt' && (
+              <g data-wt="wt-mv-commit">
+                <rect
+                  x={280}
+                  y={80}
+                  width={230}
+                  height={30}
+                  rx={6}
+                  fill="#10201c"
+                  stroke="#f5a623"
+                />
+                <text x={288} y={100} fill="#f5a623" font-size="11">
+                  A commits — WAL record flushed
+                </text>
+              </g>
+            )}
+            <g data-wt="wt-mv-crash">
+              <rect
+                x={280}
+                y={visual.variant === 'alt' ? 120 : 80}
+                width={230}
+                height={30}
+                rx={6}
+                fill="#2a1219"
+                stroke="#ff5d8f"
+              />
+              <text x={288} y={visual.variant === 'alt' ? 140 : 100} fill="#ff5d8f" font-size="11">
+                ✖ crash{visual.variant === 'alt' ? ' after commit' : ' before the commit record'}
+              </text>
+            </g>
+            <g data-wt="wt-mv-recovery">
+              <rect
+                x={280}
+                y={visual.variant === 'alt' ? 160 : 120}
+                width={230}
+                height={30}
+                rx={6}
+                fill="#161c25"
+                stroke="#7c5cff"
+              />
+              <text x={288} y={visual.variant === 'alt' ? 180 : 140} fill="#c7d0de" font-size="11">
+                recovery: replay WAL to last commit
+              </text>
+            </g>
+            {visual.variant === 'default' && (
+              <g data-wt="wt-mv-readerC-abort">
+                <rect
+                  x={280}
+                  y={160}
+                  width={230}
+                  height={30}
+                  rx={6}
+                  fill="#2a1219"
+                  stroke="#ff5d8f"
+                />
+                <text x={288} y={180} fill="#ff5d8f" font-size="11">
+                  reader C sees 100 — A aborted
+                </text>
+              </g>
+            )}
+            {visual.variant === 'alt' && (
+              <g data-wt="wt-mv-readerC-commit">
+                <rect
+                  x={280}
+                  y={200}
+                  width={230}
+                  height={30}
+                  rx={6}
+                  fill="#10201c"
+                  stroke="#00ffe1"
+                />
+                <text x={288} y={220} fill="#00ffe1" font-size="11">
+                  reader C (new snapshot) sees 250
+                </text>
+              </g>
+            )}
+            {/* WAL strip */}
+            <rect x={20} y={230} width={110} height={30} rx={4} fill="#11161d" stroke="#3a4356" />
+            <text x={30} y={250} fill="#8b95a7" font-size="10">
+              WAL: A-begin
+            </text>
+            <rect x={140} y={230} width={110} height={30} rx={4} fill="#11161d" stroke="#3a4356" />
+            <text x={150} y={250} fill="#8b95a7" font-size="10">
+              A-update v2
+            </text>
+            {visual.variant === 'alt' && (
+              <g data-wt="wt-mv-commit">
+                <rect
+                  x={260}
+                  y={230}
+                  width={130}
+                  height={30}
+                  rx={4}
+                  fill="#10201c"
+                  stroke="#f5a623"
+                />
+                <text x={270} y={250} fill="#f5a623" font-size="10">
+                  A-COMMIT (flush)
+                </text>
+              </g>
+            )}
+            <g data-wt="wt-mv-crash">
+              <line
+                x1={visual.variant === 'alt' ? 400 : 260}
+                y1={222}
+                x2={visual.variant === 'alt' ? 400 : 260}
+                y2={268}
+                stroke="#ff5d8f"
+                stroke-width="2"
+                stroke-dasharray="4 3"
+              />
+            </g>
+          </g>
+        )
+      }
+
+      {
+        modeFamily === 'graph' && (
+          <g font-family="ui-monospace, monospace">
+            {GRAPH_EDGES.map((e, i) => {
+              const a = toPx(
+                GRAPH_NODES.find((n) => n.id === e.from)!.x,
+                GRAPH_NODES.find((n) => n.id === e.from)!.y,
+                W,
+                300,
+              );
+              const b = toPx(
+                GRAPH_NODES.find((n) => n.id === e.to)!.x,
+                GRAPH_NODES.find((n) => n.id === e.to)!.y,
+                W,
+                300,
+              );
+              return (
+                <line
+                  x1={a.x}
+                  y1={a.y}
+                  x2={b.x}
+                  y2={b.y}
+                  stroke="#3a4356"
+                  stroke-width="1.5"
+                  marker-end="url(#wt-arrow)"
+                  data-wt={`wt-g-edge-${i}`}
+                />
+              );
+            })}
+            {GRAPH_NODES.map((n) => {
+              const p = toPx(n.x, n.y, W, 300);
+              return (
+                <g data-wt={`wt-g-node-${n.id}`}>
+                  <circle
+                    cx={p.x}
+                    cy={p.y}
+                    r={16}
+                    fill="#161c25"
+                    stroke="#7c5cff"
+                    stroke-width="1.5"
+                  />
+                  <text x={p.x - 6} y={p.y + 4} fill="#e6ebf4" font-size="12">
+                    {n.id}
+                  </text>
+                  <text x={p.x - 20} y={p.y + 30} fill="#8b95a7" font-size="9">
+                    {n.label}
+                  </text>
+                </g>
+              );
+            })}
+            {GRAPH_NODES.map((n) => {
+              const p = toPx(n.x, n.y, W, 300);
+              return (
+                <circle
+                  cx={p.x}
+                  cy={p.y}
+                  r={21}
+                  fill="none"
+                  stroke="#f5a623"
+                  stroke-width="2"
+                  stroke-dasharray="4 3"
+                  data-wt={`wt-g-front-${n.id}`}
+                />
+              );
+            })}
+            <text x={20} y={330} fill="#8b95a7" font-size="10">
+              dashed ring = node in the current frontier · arrows show relationship direction
+            </text>
+          </g>
+        )
+      }
+
+      {
+        modeFamily === 'columnar' && (
+          <g font-family="ui-monospace, monospace">
+            {col.columns.map((cname, ci) => (
+              <g>
+                <text
+                  x={60 + ci * 165}
+                  y={40}
+                  fill={cname === 'user_id' ? '#5a6373' : '#8b95a7'}
+                  font-size="11"
+                >
+                  {cname}
+                </text>
+                {Array.from({ length: col.granules }, (_, g) => {
+                  const skippedHere = !alt && g < colSkipped;
+                  return (
+                    <rect
+                      x={60 + ci * 165}
+                      y={50 + g * 28}
+                      width={140}
+                      height={22}
+                      rx={3}
+                      fill={cname === 'user_id' ? '#11161d' : skippedHere ? '#0d1117' : '#161c25'}
+                      stroke={skippedHere ? '#2a3342' : '#3a4356'}
+                      stroke-dasharray={skippedHere ? '3 3' : undefined}
+                    />
+                  );
+                })}
+              </g>
+            ))}
+            <g data-wt="wt-col-prune">
+              <rect x={225} y={30} width={140} height={254} rx={6} fill="#0a0e13" opacity="0.72" />
+              <text x={232} y={300} fill="#ff5d8f" font-size="10">
+                user_id: never read
+              </text>
+            </g>
+            {!alt && (
+              <g data-wt="wt-col-skip">
+                {Array.from({ length: colSkipped }, (_, g) => (
+                  <text x={18} y={66 + g * 28} fill="#ff5d8f" font-size="10">
+                    skip
+                  </text>
+                ))}
+                <text x={18} y={40} fill="#8b95a7" font-size="9">
+                  day range
+                </text>
+              </g>
+            )}
+            <g data-wt="wt-col-read">
+              {Array.from({ length: colLoaded }, (_, i) => (
+                <text x={18} y={66 + (i + colSkipped) * 28} fill="#00ffe1" font-size="10">
+                  read
+                </text>
+              ))}
+            </g>
+            <g data-wt="wt-col-pred">
+              {colRowPass.map((pass, g) =>
+                pass > 0 ? (
+                  <text x={690} y={66 + g * 28} fill="#f5a623" font-size="9" text-anchor="end">
+                    {pass}/4 pass
+                  </text>
+                ) : null,
+              )}
+              <text x={690} y={40} fill="#8b95a7" font-size="9" text-anchor="end">
+                bytes &gt; 1000
+              </text>
+            </g>
+            <g data-wt="wt-col-agg">
+              <rect x={20} y={288} width={250} height={24} rx={6} fill="#10201c" stroke="#00ffe1" />
+              <text x={28} y={305} fill="#00ffe1" font-size="10">
+                partial sums per block → merged by region
+              </text>
+            </g>
+            <g data-wt="wt-col-out">
+              <rect
+                x={290}
+                y={288}
+                width={200}
+                height={24}
+                rx={6}
+                fill="#10201c"
+                stroke="#00ffe1"
+              />
+              <text x={298} y={305} fill="#00ffe1" font-size="10">
+                output: one row per region (×3)
+              </text>
+            </g>
+            <g data-wt="wt-col-summary">
+              <rect
+                x={510}
+                y={288}
+                width={190}
+                height={24}
+                rx={6}
+                fill="#10201c"
+                stroke="#00ffe1"
+              />
+              <text x={518} y={305} fill="#00ffe1" font-size="10">
+                {`${colSkipped}/8 granules skipped · ${colLoaded * 4 * 3} cells read`}
+              </text>
+            </g>
+          </g>
+        )
+      }
+    </svg>
+  </div>
+
+  {/* Controls: discrete stepping works with or without animation. */}
+  <div class="mt-3 space-y-2" data-wt-controls>
+    <div class="flex flex-wrap items-center gap-2 text-xs">
+      <button
+        type="button"
+        data-ctrl="play"
+        class="rounded border border-[var(--color-border)] px-2 py-1 hover:bg-white/5"
+        aria-pressed="false">▶ play</button
+      >
+      <button
+        type="button"
+        data-ctrl="prev"
+        class="rounded border border-[var(--color-border)] px-2 py-1 hover:bg-white/5"
+        >◀ step</button
+      >
+      <button
+        type="button"
+        data-ctrl="next"
+        class="rounded border border-[var(--color-border)] px-2 py-1 hover:bg-white/5"
+        >step ▶</button
+      >
+      <button
+        type="button"
+        data-ctrl="reset"
+        class="rounded border border-[var(--color-border)] px-2 py-1 hover:bg-white/5"
+        >↺ reset</button
+      >
+      <span class="font-mono text-[0.7rem] text-[var(--color-fg-muted)]" data-wt-counter></span>
+    </div>
+    <p class="font-mono text-[0.7rem] text-[var(--color-fg-muted)]" data-wt-note aria-live="polite">
+    </p>
+    <table
+      class="w-full max-w-md text-left font-mono text-[0.7rem] text-[var(--color-fg-muted)]"
+      aria-label="Final state summary"
+    >
+      <tbody>
+        {
+          trace.summary.map(([k, v]) => (
+            <tr>
+              <td class="pr-3 align-top text-[var(--color-fg)]">{k}</td>
+              <td class="align-top">{v}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+    <details class="text-xs text-[var(--color-fg-muted)]">
+      <summary class="cursor-pointer">All steps</summary>
+      <ol class="mt-1 list-decimal space-y-1 pl-5" data-wt-steps>
+        {
+          trace.steps.map((s) => (
+            <li>
+              <span class="text-[var(--color-fg)]">{s.title}</span> — {s.note}
+            </li>
+          ))
+        }
+      </ol>
+    </details>
+    <p class="text-[0.7rem] text-[var(--color-fg-muted)]">{trace.intro}</p>
+    {visual.caption && <p class="text-[0.7rem] text-[var(--color-fg-muted)]">{visual.caption}</p>}
+  </div>
+</div>
+
+<script>
+  /**
+   * Walkthrough replay. The server rendered the final state; the client owns
+   * the step cursor: cumulative reveals of data-wt elements, narration swap,
+   * step-list highlight. Play is the only timed behavior; everything works
+   * discretely for reduced-motion users.
+   */
+  interface WtStepJson {
+    title: string;
+    note: string;
+    reveal: string[];
+  }
+
+  const panels = Array.from(document.querySelectorAll<HTMLElement>('[data-wt-panel]'));
+  for (const panel of panels) {
+    const svg = panel.querySelector<SVGSVGElement>('[data-wt-svg]');
+    const stepsEl = panel.querySelector<HTMLOListElement>('[data-wt-steps]');
+    const note = panel.querySelector<HTMLElement>('[data-wt-note]');
+    const counter = panel.querySelector<HTMLElement>('[data-wt-counter]');
+    const playBtn = panel.querySelector<HTMLButtonElement>('[data-ctrl="play"]');
+    let trace: WtStepJson[] = [];
+    try {
+      trace = (JSON.parse(panel.dataset.trace ?? '[]') as { steps: WtStepJson[] }).steps ?? [];
+    } catch {
+      trace = [];
+    }
+    if (trace.length === 0 || !svg) continue;
+
+    const revealedAt = new Map<string, number>();
+    trace.forEach((s, i) => {
+      for (const key of s.reveal) {
+        const at = revealedAt.get(key);
+        if (at === undefined || i < at) revealedAt.set(key, i);
+      }
+    });
+    const wtEls = Array.from(svg.querySelectorAll<SVGElement>('[data-wt]'));
+    const stepItems = stepsEl ? Array.from(stepsEl.querySelectorAll('li')) : [];
+
+    let idx = trace.length - 1; // final state first (matches no-JS render)
+    let playing = false;
+    let timer: number | undefined;
+
+    function apply(): void {
+      for (const el of wtEls) {
+        const key = el.getAttribute('data-wt') ?? '';
+        const at = revealedAt.get(key);
+        const visible = at !== undefined && at <= idx;
+        el.style.opacity = visible ? '1' : '0';
+      }
+      const step = trace[idx];
+      if (note) note.textContent = `Step ${idx + 1}/${trace.length} — ${step.title}: ${step.note}`;
+      if (counter) counter.textContent = `${idx + 1} / ${trace.length}`;
+      stepItems.forEach((li, i) => {
+        li.style.fontWeight = i === idx ? '600' : '';
+        li.style.color = i === idx ? 'var(--color-fg)' : '';
+      });
+      if (playBtn) {
+        playBtn.textContent = playing ? '❚❚ pause' : '▶ play';
+        playBtn.setAttribute('aria-pressed', String(playing));
+      }
+    }
+
+    function stop(): void {
+      playing = false;
+      if (timer !== undefined) {
+        window.clearInterval(timer);
+        timer = undefined;
+      }
+      if (playBtn) {
+        playBtn.textContent = '▶ play';
+        playBtn.setAttribute('aria-pressed', 'false');
+      }
+    }
+
+    panel.addEventListener('click', (ev) => {
+      const btn = (ev.target as HTMLElement).closest?.('[data-ctrl]');
+      if (!btn) return;
+      const kind = btn.getAttribute('data-ctrl');
+      if (kind === 'play') {
+        if (playing) {
+          stop();
+        } else {
+          playing = true;
+          if (idx >= trace.length - 1) idx = 0;
+          apply();
+          timer = window.setInterval(() => {
+            if (idx >= trace.length - 1) {
+              stop();
+            } else {
+              idx++;
+            }
+            apply();
+          }, 1600);
+        }
+      } else if (kind === 'next') {
+        stop();
+        idx = Math.min(trace.length - 1, idx + 1);
+      } else if (kind === 'prev') {
+        stop();
+        idx = Math.max(0, idx - 1);
+      } else if (kind === 'reset') {
+        stop();
+        idx = 0;
+      }
+      apply();
+    });
+
+    apply();
+  }
+</script>

@@ -106,11 +106,21 @@ export const exhibit: DatabaseEntry = {
         'Writes append to the WAL, then update heap tuples in place; dead tuples are reclaimed by autovacuum.',
     },
     {
-      kind: 'diagram',
-      component: 'MvccTimeline',
-      title: 'Snapshot isolation timeline',
+      kind: 'walkthrough',
+      mode: 'mvcc-commit',
+      variant: 'default',
+      title: 'MVCC visibility, the commit boundary, and recovery',
       description:
-        'Three concurrent transactions with overlapping read/write sets; each sees the row version visible at its snapshot.',
+        'Stepwise: a new version is invisible until its transaction commits; old-snapshot readers keep seeing v1; crash recovery replays WAL to the last committed record.',
+      caption:
+        'Simplified xmin-only model of PostgreSQL MVCC — the durable rule shown (commit waits for WAL flush) is exact; xmax/clog details are in the MVCC chapter.',
+      concepts: ['MVCC', 'snapshot', 'WAL', 'crash recovery'],
+      sourceRefs: [
+        {
+          label: 'PostgreSQL: MVCC (ch. 73)',
+          href: 'https://www.postgresql.org/docs/current/mvcc.html',
+        },
+      ],
     },
     {
       kind: 'diagram',

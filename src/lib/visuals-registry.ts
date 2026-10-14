@@ -13,6 +13,7 @@ export const VISUAL_KINDS = [
   'page-microscope',
   'wal-timeline',
   'vector-index',
+  'walkthrough',
   'family-map',
   'legend',
   'gpu-scene',

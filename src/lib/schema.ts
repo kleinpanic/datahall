@@ -17,6 +17,7 @@ import { z } from 'zod';
 
 export const Paradigm = z.enum([
   'embedded-sql',
+  'embedded-kv',
   'client-server',
   'server',
   'embedded-vector',
@@ -271,6 +272,27 @@ const VisualQueryPlan = z.object({
   sourceRefs: z.array(SourceRef).max(6).optional(),
 });
 
+/** Stepwise, narrated algorithm walkthrough with play/step controls. */
+const VisualWalkthrough = z.object({
+  kind: z.literal('walkthrough'),
+  title: z.string().min(1).max(120),
+  description: z.string().min(1).max(300),
+  mode: z.enum([
+    'btree-split',
+    'btree-search',
+    'lsm-compaction',
+    'lsm-overwrite',
+    'mvcc-commit',
+    'graph-bfs',
+    'columnar-scan',
+  ]),
+  /** `alt` selects the builder's second scenario (see each walkthrough module). */
+  variant: z.enum(['default', 'alt']).default('default'),
+  caption: z.string().max(280).optional(),
+  concepts: z.array(z.string().min(1).max(80)).max(12).optional(),
+  sourceRefs: z.array(SourceRef).max(6).optional(),
+});
+
 /** Museum-lobby database family map. Used on the homepage and as a wide visual on each exhibit. */
 const VisualFamilyMap = z.object({
   kind: z.literal('family-map'),
@@ -347,6 +369,7 @@ export const Visual = z.discriminatedUnion('kind', [
   VisualMicroscope,
   VisualWalTimeline,
   VisualVectorIndex,
+  VisualWalkthrough,
   VisualFamilyMap,
   VisualLegend,
   VisualGpuScene,
@@ -363,6 +386,7 @@ export type VisualPipeline = z.infer<typeof VisualPipeline>;
 export type VisualMicroscope = z.infer<typeof VisualMicroscope>;
 export type VisualWalTimeline = z.infer<typeof VisualWalTimeline>;
 export type VisualVectorIndex = z.infer<typeof VisualVectorIndex>;
+export type VisualWalkthrough = z.infer<typeof VisualWalkthrough>;
 export type VisualFamilyMap = z.infer<typeof VisualFamilyMap>;
 export type VisualLegend = z.infer<typeof VisualLegend>;
 export type VisualGpuScene = z.infer<typeof VisualGpuScene>;
