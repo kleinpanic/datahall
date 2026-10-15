@@ -897,6 +897,11 @@ const toSvg = (nx: number, ny: number) => ({ x: nx * viewW, y: ny * viewH });
         >
           ↺ reset
         </button>
+        <span
+          data-hnsw-ms
+          hidden
+          class="rounded bg-black/60 px-1.5 py-0.5 font-mono text-[0.65rem] text-[var(--color-accent)]"
+        ></span>
         <label class="ml-2 flex items-center gap-1">
           k
           <input
@@ -1280,6 +1285,26 @@ const toSvg = (nx: number, ny: number) => ({ x: nx * viewW, y: ny * viewH });
           chain.prewarm(surface.format),
         ]);
 
+        // GPU pass timing (timestamp-query): live render-ms readout when the
+        // device supports it; degrades to a hidden badge when it does not.
+        let gpuTimer: ReturnType<typeof vgpu.timer> | null = null;
+        let unsubMs: (() => void) | undefined;
+        try {
+          gpuTimer = vgpu.timer(gpu);
+          const badge = el.parentElement?.querySelector('[data-hnsw-ms]');
+          if (badge) {
+            unsubMs = gpuTimer.onResults((spans) => {
+              const ms = spans['hnsw-scene'];
+              if (ms !== undefined) {
+                badge.textContent = `render ${ms.toFixed(2)} ms GPU`;
+                (badge as HTMLElement).hidden = false;
+              }
+            });
+          }
+        } catch {
+          gpuTimer = null;
+        }
+
         let mx = -1;
         let my = -1;
         let hover = 0;
@@ -1319,7 +1344,8 @@ const toSvg = (nx: number, ny: number) => ({ x: nx * viewW, y: ny * viewH });
             bg.set({ params: { time: time - timeBase, mx, my, hover } });
             edgeDraw.set({ params });
             nodeDraw.set({ params });
-            frame.pass({ target: chain.scene }, (p) => {
+            const span = gpuTimer ? gpuTimer.span('hnsw-scene') : undefined;
+            frame.pass({ target: chain.scene, timer: span }, (p) => {
               p.draw(bg);
               p.draw(edgeDraw);
               p.draw(nodeDraw);
@@ -1330,6 +1356,8 @@ const toSvg = (nx: number, ny: number) => ({ x: nx * viewW, y: ny * viewH });
             el.removeEventListener('pointermove', onMove);
             el.removeEventListener('pointerleave', onLeave);
             el.removeEventListener('click', onClick);
+            unsubMs?.();
+            gpuTimer?.dispose();
             chain.destroy();
           },
         };
