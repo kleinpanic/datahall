@@ -285,6 +285,7 @@ const VisualWalkthrough = z.object({
     'mvcc-commit',
     'graph-bfs',
     'columnar-scan',
+    'bloom-filter',
   ]),
   /** `alt` selects the builder's second scenario (see each walkthrough module). */
   variant: z.enum(['default', 'alt']).default('default'),

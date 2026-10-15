@@ -11,6 +11,15 @@ import { lsmTrace, lsmRenderModel } from '../../src/lib/walkthroughs/lsm';
 import { mvccTrace } from '../../src/lib/walkthroughs/mvcc';
 import { graphBfsTrace, GRAPH_NODES, GRAPH_EDGES } from '../../src/lib/walkthroughs/graph-bfs';
 import { columnarTrace, columnarModel } from '../../src/lib/walkthroughs/columnar';
+import {
+  bloomTrace,
+  bloomBits,
+  bloomState,
+  falsePositiveRate,
+  findFalsePositive,
+  BLOOM_BITS,
+  BLOOM_K,
+} from '../../src/lib/walkthroughs/bloom';
 import type { WtTrace } from '../../src/lib/walkthroughs/types';
 
 function expectSane(trace: WtTrace): void {
@@ -141,6 +150,48 @@ describe('graph BFS walkthrough', () => {
 
   it('is deterministic', () => {
     expect(graphBfsTrace('F')).toEqual(graphBfsTrace('F'));
+  });
+});
+
+describe('bloom walkthrough', () => {
+  it('membership: inserts, hit, clean absence, and a genuine false positive', () => {
+    const t = bloomTrace('membership');
+    expectSane(t);
+    // 3 inserts + hit + clean absence + false positive + summary
+    expect(t.steps).toHaveLength(7);
+    const titles = t.steps.map((s) => s.title).join(' ');
+    expect(titles).toContain('definitely absent');
+    expect(titles).toContain('false positive');
+  });
+
+  it('the demonstrated false positive is real: not inserted, yet all bits set', () => {
+    const fp = findFalsePositive();
+    const state = bloomState();
+    expect(bloomBits(fp).every((b) => state[b])).toBe(true);
+    const inserted = [1, 4, 6];
+    expect(inserted).not.toContain(fp);
+  });
+
+  it('never produces false negatives: every inserted id reads possibly-present', () => {
+    const state = bloomState();
+    for (const id of [1, 4, 6]) {
+      expect(bloomBits(id).every((b) => state[b])).toBe(true);
+    }
+  });
+
+  it('reports the classical FPR bound for the fixed model', () => {
+    const t = bloomTrace('membership');
+    const rate = falsePositiveRate(3);
+    expect(rate).toBeGreaterThan(0.02);
+    expect(rate).toBeLessThan(0.05);
+    const formula = t.summary.find(([k]) => k === 'FPR formula');
+    expect(formula?.[1]).toContain('(1 − e^(−kn/m))^k');
+    expect(BLOOM_BITS).toBe(24);
+    expect(BLOOM_K).toBe(3);
+  });
+
+  it('is deterministic', () => {
+    expect(bloomTrace('membership')).toEqual(bloomTrace('membership'));
   });
 });
 

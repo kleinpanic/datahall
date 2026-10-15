@@ -111,6 +111,23 @@ export const exhibit: DatabaseEntry = {
       ],
     },
     {
+      kind: 'walkthrough',
+      mode: 'bloom-filter',
+      variant: 'default',
+      title: 'Bloom filters: cheap “definitely not here” answers',
+      description:
+        'Insert three keys into a 24-bit bloom filter, then look up a true hit, a certain absence, and a genuine false positive — the exact tradeoff RocksDB makes per SST file.',
+      caption:
+        'Teaching model: 24 bits, k=3 display-friendly hashes. RocksDB uses ~10 bits per key with blocked bloom filters tuned per level.',
+      concepts: ['bloom filter', 'false positive rate', 'read amplification'],
+      sourceRefs: [
+        {
+          label: 'RocksDB wiki: Bloom Filters',
+          href: 'https://github.com/facebook/rocksdb/wiki/RocksDB-Bloom-Filter',
+        },
+      ],
+    },
+    {
       kind: 'index-stats',
       title: 'LSM shape under leveled compaction',
       description:

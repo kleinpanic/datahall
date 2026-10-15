@@ -34,6 +34,14 @@ import {
   columnarModel,
   type ColumnarVariant,
 } from '../../lib/walkthroughs/columnar';
+import {
+  bloomTrace,
+  bloomState,
+  bloomBits,
+  findFalsePositive,
+  BLOOM_BITS,
+  BLOOM_K,
+} from '../../lib/walkthroughs/bloom';
 import type { WtTrace } from '../../lib/walkthroughs/types';
 
 interface Props {
@@ -59,11 +67,16 @@ const trace: WtTrace = (() => {
       return graphBfsTrace((alt ? 'E' : 'F') as BfsTarget);
     case 'columnar-scan':
       return columnarTrace((alt ? 'full-scan' : 'range-filter') as ColumnarVariant);
+    case 'bloom-filter':
+      return bloomTrace(alt ? 'insert-only' : 'membership');
   }
 })();
 
-const modeFamily =
-  visual.mode.startsWith('btree') || visual.mode === 'btree-search'
+const fp = findFalsePositive();
+
+const modeFamily = visual.mode.startsWith('bloom')
+  ? 'bloom'
+  : visual.mode.startsWith('btree') || visual.mode === 'btree-search'
     ? 'btree'
     : visual.mode.startsWith('lsm')
       ? 'lsm'
@@ -1003,6 +1016,136 @@ const toPx = (nx: number, ny: number, w = W, h = H) => ({ x: nx * w, y: ny * h }
                 {`${colSkipped}/8 granules skipped · ${colLoaded * 4 * 3} cells read`}
               </text>
             </g>
+          </g>
+        )
+      }
+      {
+        modeFamily === 'bloom' && (
+          <g font-family="ui-monospace, monospace">
+            <text x={12} y={28} fill="#8b95a7" font-size="11">
+              {`bit array — m=${BLOOM_BITS}, k=${BLOOM_K} hashes · h_i(id) = (a_i·id + b_i) mod ${BLOOM_BITS}`}
+            </text>
+            {(() => {
+              const state = bloomState();
+              const cellW = 26;
+              const gap = 3;
+              const x0 = 12;
+              const y0 = 46;
+              const inserted = [1, 4, 6];
+              const ringColors = ['#7c5cff', '#ffb347', '#5cffb1'];
+              return (
+                <g>
+                  {Array.from({ length: BLOOM_BITS }, (_, b) => {
+                    const x = x0 + b * (cellW + gap);
+                    const set = state[b]!;
+                    return (
+                      <g>
+                        <rect
+                          x={x}
+                          y={y0}
+                          width={cellW}
+                          height={30}
+                          rx={4}
+                          fill={set ? '#123a33' : '#11161d'}
+                          stroke={set ? '#00ffe1' : '#3a4356'}
+                        />
+                        <text
+                          x={x + cellW / 2}
+                          y={y0 + 20}
+                          fill={set ? '#5cffb1' : '#5a6373'}
+                          font-size="11"
+                          text-anchor="middle"
+                        >
+                          {b}
+                        </text>
+                      </g>
+                    );
+                  })}
+                  {inserted.map((id, n) =>
+                    bloomBits(id).map((b) => {
+                      const x = x0 + b * (cellW + gap);
+                      return (
+                        <rect
+                          x={x - 1.5}
+                          y={y0 - 1.5}
+                          width={cellW + 3}
+                          height={33}
+                          rx={5}
+                          fill="none"
+                          stroke={ringColors[n]}
+                          stroke-width="1.5"
+                          data-wt={`wt-bf-ins-${n}-${b}`}
+                        />
+                      );
+                    }),
+                  )}
+                  {visual.variant === 'default' && (
+                    <g>
+                      {(
+                        [
+                          {
+                            key: 'wt-bf-hit',
+                            id: 4,
+                            label: 'lookup(4) — hit: all bits set (inserted earlier)',
+                            color: '#f5a623',
+                            y: 108,
+                          },
+                          {
+                            key: 'wt-bf-clean',
+                            id: 7,
+                            label: 'lookup(7) — a zero bit: definitely absent',
+                            color: '#00ffe1',
+                            y: 132,
+                          },
+                          {
+                            key: 'wt-bf-fp',
+                            id: fp,
+                            label: `lookup(${fp}) — all bits set from OTHERS: false positive`,
+                            color: '#ff5d8f',
+                            y: 156,
+                          },
+                        ] as const
+                      ).map(({ key, id, label, color, y }) => (
+                        <g data-wt={key}>
+                          <text x={12} y={y + 5} fill={color} font-size="10">
+                            {label}
+                          </text>
+                          {bloomBits(id).map((b) => {
+                            const x = x0 + b * (cellW + gap);
+                            return (
+                              <rect
+                                x={x}
+                                y={y - 9}
+                                width={cellW}
+                                height={13}
+                                rx={3}
+                                fill={color}
+                                opacity="0.8"
+                              />
+                            );
+                          })}
+                        </g>
+                      ))}
+                    </g>
+                  )}
+                  <g data-wt="wt-bf-summary">
+                    <rect
+                      x={12}
+                      y={296}
+                      width={696}
+                      height={30}
+                      rx={6}
+                      fill="#10201c"
+                      stroke="#00ffe1"
+                    />
+                    <text x={20} y={316} fill="#00ffe1" font-size="11">
+                      absence: certain — presence: probabilistic. That asymmetry IS the bloom
+                      filter.
+                    </text>
+                  </g>
+                </g>
+              );
+            })()}
           </g>
         )
       }
