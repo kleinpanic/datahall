@@ -111,8 +111,28 @@ try {
   if (blurLit === 0) throw new Error('blur pass produced nothing');
   savePng('bloom-blur', blurT, fpx);
 
+  // 5. GpuFlow modules: backdrop renders; trail decay actually decays.
+  const flowBgT = target(gpu, { size: [W, H] });
+  const flowBg = effect(gpu, wgsl('gpu-flow-bg.wgsl'), {
+    set: { params: { time: 0.5, stages: 4 } },
+  });
+  flowBg.draw(flowBgT);
+  const flowFadeT = target(gpu, { size: [W, H] });
+  const flowFade = effect(gpu, wgsl('flow-fade.wgsl'), {
+    set: { src_tex: flowBgT, params: { decay: 0.5 } },
+  });
+  flowFade.draw(flowFadeT);
+  const fpx2 = await readTarget(flowFadeT);
+  const flowPx = await readTarget(flowBgT);
+  let sum2 = 0;
+  for (let i = 0; i < fpx2.length; i += 4) sum2 += fpx2[i] + fpx2[i + 1] + fpx2[i + 2];
+  let sum1 = 0;
+  for (let i = 0; i < flowPx.length; i += 4) sum1 += flowPx[i] + flowPx[i + 1] + flowPx[i + 2];
+  if (sum2 === 0 || sum2 >= sum1) throw new Error('flow fade did not decay the source');
+  savePng('flow-fade', flowFadeT, fpx2);
+
   const adapter = gpu.adapter ? JSON.stringify(gpu.adapter) : '"auto"';
-  console.log(`GPU_SMOKE_OK adapter=${adapter} frames=4 out=${OUT}`);
+  console.log(`GPU_SMOKE_OK adapter=${adapter} frames=6 out=${OUT}`);
 } finally {
   // Stops Dawn's polling so the process exits on its own.
   gpu.dispose();

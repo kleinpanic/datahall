@@ -56,8 +56,11 @@ const { stages, seed = 11, fps = 30 } = Astro.props;
   import { createBloomChain } from '../../lib/vgpu-bloom';
   import bgShader from '../../wgsl/gpu-flow-bg.wgsl';
   import packetsShader from '../../wgsl/gpu-flow-packets.wgsl';
+  import fadeShader from '../../wgsl/flow-fade.wgsl';
 
   type Mount = HTMLElement;
+
+  type DestroyableTarget = { destroy?(): void };
 
   function clampInt(v: string | undefined, def: number, min: number, max: number): number {
     const n = parseInt(v ?? String(def), 10);
@@ -83,13 +86,22 @@ const { stages, seed = 11, fps = 30 } = Astro.props;
           shader: packetsShader,
           instances: 140,
           vertices: 6,
+          blend: 'additive',
         });
+        const fade = vgpu.effect(gpu, fadeShader, { set: { params: { decay: 0.86 } } });
         const chain = createBloomChain(vgpu, gpu, surface.size);
         await Promise.all([
           bg.compile({ colors: ['rgba16float'] }),
           packets.compile({ colors: ['rgba16float'] }),
+          fade.compile({ colors: ['rgba16float'] }),
           chain.prewarm(surface.format),
         ]);
+
+        // Ping-pong trail buffer (vgpu 0.6.0): packets accumulate and decay
+        // across frames, then feed the bloom bright pass.
+        let pp = vgpu.pingPong(gpu, surface.size[0], surface.size[1], {
+          format: 'bgra8unorm',
+        });
 
         let lastW = -1;
         let lastH = -1;
@@ -100,14 +112,20 @@ const { stages, seed = 11, fps = 30 } = Astro.props;
               lastW = sw;
               lastH = sh;
               chain.resize(surface.size);
+              (pp.read as DestroyableTarget).destroy?.();
+              (pp.write as DestroyableTarget).destroy?.();
+              pp = vgpu.pingPong(gpu, sw, sh, { format: 'bgra8unorm' });
             }
-            bg.set({ params: { time, stages } });
+            // Decay the previous frame's trails, then accumulate packets.
+            fade.set({ src_tex: pp.read });
+            frame.pass({ target: pp.write }, (p) => p.draw(fade));
             packets.set({ params: { time, stages, seed } });
-            frame.pass({ target: chain.scene }, (p) => {
-              p.draw(bg);
-              p.draw(packets);
-            });
-            chain.render(frame, surface, { strength: 0.55, time });
+            frame.pass({ target: pp.write }, (p) => p.draw(packets));
+            // Static backdrop composites; the live trail buffer feeds bloom.
+            bg.set({ params: { time, stages } });
+            frame.pass({ target: chain.scene }, (p) => p.draw(bg));
+            chain.render(frame, surface, { strength: 0.55, time, sceneTex: pp.write });
+            pp.swap();
           },
           destroy() {
             chain.destroy();

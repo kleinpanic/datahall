@@ -40,6 +40,8 @@ export interface BloomChain {
 export interface BloomRenderOptions {
   strength?: number;
   time?: number;
+  /** Render an alternate buffer (e.g. a ping-pong trail buffer) through the bright pass. */
+  sceneTex?: Target;
 }
 
 interface MutableTarget extends Target {
@@ -103,6 +105,7 @@ export function createBloomChain(
     render(frame: Frame, output: Surface, opts: BloomRenderOptions = {}): void {
       const strength = opts.strength ?? 0.8;
       const time = opts.time ?? 0;
+      if (opts.sceneTex) bright.set({ src_tex: opts.sceneTex });
       frame.pass({ target: h1 }, (p) => p.draw(bright));
       frame.pass({ target: h2 }, (p) => p.draw(blurH1));
       frame.pass({ target: h1 }, (p) => p.draw(blurV1));
