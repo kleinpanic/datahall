@@ -101,6 +101,28 @@ test.describe('layout integrity (desktop 1280x800)', () => {
   }
 });
 
+test.describe('layout integrity (wide 1600x900)', () => {
+  test.use({ viewport: { width: 1600, height: 900 } });
+  for (const path of DESKTOP_PAGES) {
+    test(`wide: no overlapping text: ${path}`, async ({ page }) => {
+      await page.goto(path);
+      await page.waitForLoadState('networkidle');
+      const findings = await collectOverlaps(page);
+      expect(
+        findings,
+        `overlapping text elements on ${path} (wide):\n${findings.map((f) => `  ${f.a}  <->  ${f.b}  (${f.area}px^2)`).join('\n')}`,
+      ).toEqual([]);
+    });
+    test(`wide: no horizontal scroll: ${path}`, async ({ page }) => {
+      await page.goto(path);
+      const over = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(over).toBeLessThanOrEqual(1);
+    });
+  }
+});
+
 test.describe('layout integrity (mobile 375x812)', () => {
   test.use({ viewport: { width: 375, height: 812 } });
   for (const path of MOBILE_PAGES) {

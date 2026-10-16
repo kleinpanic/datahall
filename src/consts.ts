@@ -12,7 +12,7 @@ export const SITE_BASE: string = rawBase.endsWith('/') ? rawBase : `${rawBase}/`
 
 export const SITE_TITLE = 'datahall';
 export const SITE_TAGLINE = 'An interactive web museum for database internals.';
-export const SITE_REPO = 'https://github.com/example/datahall';
+export const SITE_REPO = 'https://github.com/kleinpanic/datahall';
 export const AUTHOR = 'datahall contributors';
 
 export const NAV: ReadonlyArray<{ label: string; href: string }> = [
