@@ -360,7 +360,7 @@ const VisualGpuScene = z.object({
   /** Deterministic layout seed shared by the WGSL scene and the SVG storyboard. */
   seed: z.number().int().min(0).max(65535).default(7),
   /** Hue rotation (degrees) applied to the whole scene band — per-exhibit brand tint. */
-  hue: z.number().int().min(0).max(360).default(0),
+  hue: z.number().int().min(0).max(360).optional(),
   /** Frame cap. Reduced-motion visitors always get the static storyboard. */
   fps: z.number().int().min(8).max(60).default(30),
   caption: z.string().max(280).optional(),
