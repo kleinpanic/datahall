@@ -3,7 +3,8 @@ import type { DatabaseEntry } from '../../lib/schema';
 export const exhibit: DatabaseEntry = {
   slug: 'scylladb',
   name: 'ScyllaDB',
-  tagline: 'Cassandra rebuilt in C++ on a shared-nothing sharded architecture: the same model, lower latency.',
+  tagline:
+    'Cassandra rebuilt in C++ on a shared-nothing sharded architecture: the same model, lower latency.',
   summary:
     'ScyllaDB reimplements the Cassandra wide-column model in C++ on a shared-nothing architecture: each core owns its own shard of memory, SSTables, and network queues, with no cross-core locks or coordination. Fully compatible with Cassandra drivers and CQL, targeting single-digit-millisecond p99 at high throughput.',
   paradigm: 'server',
@@ -69,12 +70,18 @@ export const exhibit: DatabaseEntry = {
       kind: 'pipeline',
       mode: 'write',
       database: 'generic',
-      title: 'Shard-local write path: coordinator core → owning shard → commit log → memtable → SSTable',
+      title:
+        'Shard-local write path: coordinator core → owning shard → commit log → memtable → SSTable',
       description:
         'A request lands on one core, hops to the shard owning the partition key, and follows the LSM loop entirely within that core — no cross-core locks.',
       caption: 'Shared-nothing: ownership of memory and disk queues is per-core.',
       concepts: ['shard', 'reactor', 'commit log', 'SSTable'],
-      sourceRefs: [{ label: 'ScyllaDB docs: Architecture', href: 'https://docs.scylladb.com/stable/architecture/architecture.html' }],
+      sourceRefs: [
+        {
+          label: 'ScyllaDB docs: Architecture',
+          href: 'https://docs.scylladb.com/stable/architecture/architecture.html',
+        },
+      ],
     },
     {
       kind: 'index-stats',
@@ -90,11 +97,19 @@ export const exhibit: DatabaseEntry = {
       selectivity: 0.25,
       caption: 'Illustrative per-shard SSTable tiers on a 4-core node.',
       concepts: ['shards', 'balanced tiers', 'IO scheduler'],
-      sourceRefs: [{ label: 'ScyllaDB University: Shared nothing architecture', href: 'https://university.scylladb.com/' }],
+      sourceRefs: [
+        {
+          label: 'ScyllaDB University: Shared nothing architecture',
+          href: 'https://university.scylladb.com/',
+        },
+      ],
     },
   ],
   sourceRefs: [
-    { label: 'ScyllaDB docs: Architecture', href: 'https://docs.scylladb.com/stable/architecture/architecture.html' },
+    {
+      label: 'ScyllaDB docs: Architecture',
+      href: 'https://docs.scylladb.com/stable/architecture/architecture.html',
+    },
     { label: 'ScyllaDB University', href: 'https://university.scylladb.com/' },
     { label: 'scylladb.com', href: 'https://www.scylladb.com/' },
   ],
