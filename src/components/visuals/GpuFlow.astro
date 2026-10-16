@@ -88,12 +88,14 @@ const { stages, seed = 11, fps = 30 } = Astro.props;
           vertices: 6,
           blend: 'additive',
         });
-        const fade = vgpu.effect(gpu, fadeShader, { set: { params: { decay: 0.86 } } });
+        const fade = vgpu.effect(gpu, fadeShader, { set: { params: { decay: 0.72 } } });
+        const trailMix = vgpu.effect(gpu, fadeShader, { blend: 'additive' });
         const chain = createBloomChain(vgpu, gpu, surface.size);
         await Promise.all([
           bg.compile({ colors: ['rgba16float'] }),
           packets.compile({ colors: ['rgba16float'] }),
           fade.compile({ colors: ['rgba16float'] }),
+          trailMix.compile({ colors: ['rgba16float'] }),
           chain.prewarm(surface.format),
         ]);
 
@@ -116,15 +118,18 @@ const { stages, seed = 11, fps = 30 } = Astro.props;
               (pp.write as DestroyableTarget).destroy?.();
               pp = vgpu.pingPong(gpu, sw, sh, { format: 'bgra8unorm' });
             }
-            // Decay the previous frame's trails, then accumulate packets.
-            fade.set({ src_tex: pp.read });
+            // Decay the previous frame's trails in the feedback buffer...
+            fade.set({ src_tex: pp.read, params: { decay: 0.72 } });
             frame.pass({ target: pp.write }, (p) => p.draw(fade));
             packets.set({ params: { time, stages, seed } });
             frame.pass({ target: pp.write }, (p) => p.draw(packets));
-            // Static backdrop composites; the live trail buffer feeds bloom.
+            // ...then show the backdrop WITH the live trails: packets stay
+            // visible in the base render, bloom reads the composed scene.
             bg.set({ params: { time, stages } });
             frame.pass({ target: chain.scene }, (p) => p.draw(bg));
-            chain.render(frame, surface, { strength: 0.55, time, sceneTex: pp.write });
+            trailMix.set({ src_tex: pp.write, params: { decay: 1.0 } });
+            frame.pass({ target: chain.scene }, (p) => p.draw(trailMix));
+            chain.render(frame, surface, { strength: 0.5, time });
             pp.swap();
           },
           destroy() {

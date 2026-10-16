@@ -17,7 +17,7 @@
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { PNG } from 'pngjs';
-import { init, effect, target } from 'vgpu/node';
+import { init, effect, target, draw, frame } from 'vgpu/node';
 import { prepareShader } from '@vgpu/wgsl/prepare';
 
 const W = 320;
@@ -131,8 +131,23 @@ try {
   if (sum2 === 0 || sum2 >= sum1) throw new Error('flow fade did not decay the source');
   savePng('flow-fade', flowFadeT, fpx2);
 
+  // 6. Hero lattice: rotating 3D projection (custom vertex stage → draw()).
+  const heroT = target(gpu, { size: [W, H] });
+  const hero = draw(gpu, {
+    shader: wgsl('gpu-hero-lattice.wgsl'),
+    instances: 560,
+    vertices: 6,
+  });
+  hero.set({ params: { time: 0.8, seed: 2026, aspect: W / H } });
+  frame(gpu, (f) => f.pass({ target: heroT }, (p) => p.draw(hero)));
+  const hpx = await readTarget(heroT);
+  let heroLit = 0;
+  for (let i = 0; i < hpx.length; i += 4) if (hpx[i] + hpx[i + 1] + hpx[i + 2] > 24) heroLit++;
+  if (heroLit < 40) throw new Error(`hero lattice too sparse: ${heroLit} lit pixels`);
+  savePng('hero-lattice', heroT, hpx);
+
   const adapter = gpu.adapter ? JSON.stringify(gpu.adapter) : '"auto"';
-  console.log(`GPU_SMOKE_OK adapter=${adapter} frames=6 out=${OUT}`);
+  console.log(`GPU_SMOKE_OK adapter=${adapter} frames=7 out=${OUT}`);
 } finally {
   // Stops Dawn's polling so the process exits on its own.
   gpu.dispose();

@@ -12,5 +12,7 @@ struct Params {
 fn fs_main(@builtin(position) pos: vec4f) -> @location(0) vec4f {
   let sd = vec2i(textureDimensions(src_tex));
   let p = clamp(vec2i(pos.xy), vec2i(0), sd - vec2i(1));
-  return vec4f(textureLoad(src_tex, p, 0).rgb * params.decay, 1.0);
+  // Clamp so accumulating trails can never blow out to white streaks.
+  let col = min(textureLoad(src_tex, p, 0).rgb * params.decay, vec3f(1.6));
+  return vec4f(col, 1.0);
 }

@@ -1,0 +1,149 @@
+---
+/**
+ * GpuHero — rotating 3D data lattice behind the homepage hero (vgpu 0.6.0).
+ *
+ * A seeded lattice of data points lives in 3D, rotates slowly, and is
+ * perspective-projected in the vertex stage; depth cueing tints near points
+ * warm and far points cool. Rendered through the shared bloom chain and the
+ * mount controller (viewport-deferred, first-frame-verified, reduced-motion
+ * aware). The static SVG below is the same lattice projected at t=0 on the
+ * server — it is the no-JS and reduced-motion story.
+ */
+const LX = 14;
+const LY = 8;
+const LZ = 5;
+const SEED = 2026;
+const COUNT = LX * LY * LZ;
+
+function hash(n: number, seed: number): number {
+  const s = Math.sin(n * 12.9898 + seed) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+interface HeroPoint {
+  cx: number;
+  cy: number;
+  r: number;
+  color: string;
+  opacity: number;
+}
+
+// Static projection at t=0 — mirrors gpu-hero-lattice.wgsl exactly.
+const heroPoints: HeroPoint[] = [];
+for (let i = 0; i < COUNT; i += 2) {
+  const ix = i % LX;
+  const iy = Math.floor((i / LX) % LY);
+  const iz = Math.floor(i / (LX * LY));
+  let px = (ix / (LX - 1) - 0.5 + (hash(i * 1.13, SEED) - 0.5) * 0.05) * 1.55;
+  let py = (iy / (LY - 1) - 0.5 + (hash(i * 2.71, SEED) - 0.5) * 0.05) * 0.85;
+  let pz = (iz / (LZ - 1) - 0.5 + (hash(i * 4.67, SEED) - 0.5) * 0.05) * 0.9;
+  // rotation a=0, b=0 at t=0: no rotation applied.
+  const s = 1.7 / (1.7 + pz + 0.85);
+  const depth = Math.min(1, Math.max(0, (pz + 0.8) / 1.6));
+  const nx = 0.32 + px * s * 0.4;
+  const ny = py * s * 0.9;
+  const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+  const r8 = Math.round(lerp(255, 26, depth));
+  const g8 = Math.round(lerp(184, 158, depth));
+  const b8 = Math.round(lerp(77, 148, depth));
+  heroPoints.push({
+    cx: 360 + nx * 175,
+    cy: 90 + ny * 82,
+    r: 0.9 + s * 1.6,
+    color: `rgb(${r8},${g8},${b8})`,
+    opacity: 0.22 + 0.5 * (1 - depth),
+  });
+}
+---
+
+<div
+  class="dh-gpu-hero absolute inset-0 overflow-hidden bg-[#0a0e13]"
+  data-gpu-hero
+  data-fps="30"
+  data-seed={SEED}
+  data-points={COUNT}
+>
+  <canvas
+    class="absolute inset-0 z-10 h-full w-full opacity-0 transition-opacity duration-700"
+    aria-hidden="true"></canvas>
+  <div class="absolute inset-0 z-0">
+    <svg
+      viewBox="0 0 720 180"
+      role="img"
+      aria-label="A slowly rotating three-dimensional lattice of data points"
+      preserveAspectRatio="xMidYMid slice"
+      class="h-full w-full"
+    >
+      {
+        heroPoints.map((p) => (
+          <circle cx={p.cx} cy={p.cy} r={p.r} fill={p.color} opacity={p.opacity} />
+        ))
+      }
+    </svg>
+  </div>
+</div>
+
+<script>
+  /**
+   * Hero boot through the shared mount controller: viewport-deferred boot,
+   * first-frame-verified activation, reduced-motion and device-loss fallback
+   * to the static projection, full teardown.
+   */
+  import { mountGpuScene } from '../../lib/vgpu-runtime';
+  import { createBloomChain } from '../../lib/vgpu-bloom';
+  import latticeShader from '../../wgsl/gpu-hero-lattice.wgsl';
+
+  const el = document.querySelector<HTMLElement>('[data-gpu-hero]');
+  const canvas = el?.querySelector('canvas');
+  if (el && canvas) {
+    const count = parseInt(el.dataset.points ?? '560', 10);
+    const seed = parseFloat(el.dataset.seed ?? '2026');
+
+    mountGpuScene({
+      el,
+      canvas,
+      fps: 30,
+      build: async ({ vgpu, gpu, surface }) => {
+        const pts = vgpu.draw(gpu, {
+          shader: latticeShader,
+          instances: count,
+          vertices: 6,
+        });
+        const chain = createBloomChain(vgpu, gpu, surface.size);
+        await Promise.all([
+          pts.compile({ colors: ['rgba16float'] }),
+          chain.prewarm(surface.format),
+        ]);
+        let lastW = -1;
+        let lastH = -1;
+        return {
+          render(frame, time) {
+            const [sw, sh] = surface.size;
+            if (sw !== lastW || sh !== lastH) {
+              lastW = sw;
+              lastH = sh;
+              chain.resize(surface.size);
+            }
+            pts.set({
+              params: { time, seed, aspect: sw / Math.max(1, sh) },
+            });
+            frame.pass({ target: chain.scene }, (p) => p.draw(pts));
+            chain.render(frame, surface, { strength: 0.9, time });
+          },
+          destroy() {
+            chain.destroy();
+          },
+        };
+      },
+      onActive() {
+        el.dataset.gpuState = 'on';
+        canvas.style.opacity = '1';
+      },
+      onFallback(reason) {
+        canvas.style.opacity = '0';
+        el.dataset.gpuState =
+          reason === 'error' ? 'error' : reason === 'device-lost' ? 'device-lost' : 'off';
+      },
+    });
+  }
+</script>

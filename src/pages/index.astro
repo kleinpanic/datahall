@@ -6,6 +6,7 @@ import { SITE_TAGLINE, withBase } from '../consts';
 import type { Visual } from '../lib/schema';
 import DatabaseFamilyMap from '../components/visuals/DatabaseFamilyMap.astro';
 import LegendPanel from '../components/visuals/LegendPanel.astro';
+import GpuHero from '../components/visuals/GpuHero.astro';
 
 // Museum lobby visuals: taxonomy map + color legend, both rendered on the
 // homepage so a first-time visitor can read the visual language before
@@ -33,28 +34,33 @@ const legendVisual: Visual = {
 ---
 
 <BaseLayout description={SITE_TAGLINE}>
-  <section class="mb-16">
-    <p class="pill mb-6">An interactive web museum</p>
-    <h1 class="display-heading mb-6 text-5xl leading-[1.05] md:text-6xl">
-      Pull back the cover on <span class="accent-text"
-        >{exhibitSlugs().length} production databases</span
-      >
-    </h1>
-    <p class="max-w-2xl text-lg text-[var(--color-fg-muted)]">
-      {SITE_TAGLINE} Each exhibit walks through the storage engine, concurrency model, and query evaluator
-      of a real production system — with hand-drawn SVG diagrams and a schema you can read in a single
-      sitting.
-    </p>
-    <div class="mt-8 flex gap-3">
-      <a href={withBase('/gallery/')} class="pill" style="font-size:0.85rem;padding:0.5rem 1rem"
-        >Browse the gallery →</a
-      >
-      <a
-        href={withBase('/about/')}
-        class="pill"
-        style="font-size:0.85rem;padding:0.5rem 1rem;background:transparent;color:var(--color-fg-muted);border-color:var(--color-border)"
-        >About</a
-      >
+  <section
+    class="relative mb-16 overflow-hidden rounded-lg border border-[var(--color-border)] bg-[#0a0e13]"
+  >
+    <GpuHero />
+    <div class="relative z-10 px-6 py-10 md:px-10">
+      <p class="pill mb-6">An interactive web museum</p>
+      <h1 class="display-heading mb-6 text-5xl leading-[1.05] md:text-6xl">
+        Pull back the cover on <span class="accent-text"
+          >{exhibitSlugs().length} production databases</span
+        >
+      </h1>
+      <p class="max-w-2xl text-lg text-[var(--color-fg-muted)]">
+        {SITE_TAGLINE} Each exhibit walks through the storage engine, concurrency model, and query evaluator
+        of a real production system — with hand-drawn SVG diagrams and a schema you can read in a single
+        sitting.
+      </p>
+      <div class="mt-8 flex gap-3">
+        <a href={withBase('/gallery/')} class="pill" style="font-size:0.85rem;padding:0.5rem 1rem"
+          >Browse the gallery →</a
+        >
+        <a
+          href={withBase('/about/')}
+          class="pill"
+          style="font-size:0.85rem;padding:0.5rem 1rem;background:transparent;color:var(--color-fg-muted);border-color:var(--color-border)"
+          >About</a
+        >
+      </div>
     </div>
   </section>
 
