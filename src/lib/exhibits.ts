@@ -24,6 +24,10 @@ import { exhibit as influxdb } from '../data/exhibits/influxdb';
 import { exhibit as cassandra } from '../data/exhibits/cassandra';
 import { exhibit as duckdb } from '../data/exhibits/duckdb';
 import { exhibit as cockroachdb } from '../data/exhibits/cockroachdb';
+import { exhibit as dynamodb } from '../data/exhibits/dynamodb';
+import { exhibit as couchdb } from '../data/exhibits/couchdb';
+import { exhibit as timescaledb } from '../data/exhibits/timescaledb';
+import { exhibit as foundationdb } from '../data/exhibits/foundationdb';
 
 const raw: ReadonlyArray<unknown> = [
   sqlite,
@@ -41,6 +45,10 @@ const raw: ReadonlyArray<unknown> = [
   cassandra,
   duckdb,
   cockroachdb,
+  dynamodb,
+  couchdb,
+  timescaledb,
+  foundationdb,
 ];
 
 const validated: ReadonlyArray<DatabaseEntry> = raw.map((entry, index) => {

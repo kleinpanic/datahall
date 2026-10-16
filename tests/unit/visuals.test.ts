@@ -148,7 +148,7 @@ describe('exhibit visuals taxonomy', () => {
   it('relational exhibits declare a wal-timeline or page-microscope visual', () => {
     const rel = exhibits.filter((e) => e.families?.includes('relational')).map((e) => e.slug);
     expect(new Set(rel)).toEqual(
-      new Set(['sqlite', 'postgresql', 'mariadb', 'cockroachdb', 'duckdb']),
+      new Set(['sqlite', 'postgresql', 'mariadb', 'cockroachdb', 'duckdb', 'timescaledb']),
     );
     for (const slug of rel) {
       const e = exhibits.find((x) => x.slug === slug)!;

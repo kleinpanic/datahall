@@ -37,8 +37,8 @@ describe('DatabaseEntry schema', () => {
 });
 
 describe('exhibit corpus', () => {
-  it('contains exactly fifteen exhibits', () => {
-    expect(exhibits).toHaveLength(15);
+  it('contains exactly nineteen exhibits', () => {
+    expect(exhibits).toHaveLength(19);
   });
 
   it('exposes unique slugs', () => {
@@ -46,7 +46,7 @@ describe('exhibit corpus', () => {
     expect(new Set(slugs).size).toBe(slugs.length);
   });
 
-  it('exposes the fifteen expected slugs', () => {
+  it('exposes the nineteen expected slugs', () => {
     expect(new Set(exhibitSlugs())).toEqual(
       new Set([
         'sqlite',
@@ -64,6 +64,10 @@ describe('exhibit corpus', () => {
         'cassandra',
         'duckdb',
         'cockroachdb',
+        'dynamodb',
+        'couchdb',
+        'timescaledb',
+        'foundationdb',
       ]),
     );
   });
