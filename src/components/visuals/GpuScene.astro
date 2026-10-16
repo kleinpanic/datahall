@@ -70,7 +70,7 @@ const toPx = (v: number, span: number) => ((v + 1) / 2) * span;
 
 <div
   class="dh-gpu-scene relative overflow-hidden rounded-lg border border-[var(--color-border)] bg-[#0a0e13]"
-  style="aspect-ratio: 16 / 9"
+  style={`aspect-ratio: 16 / 9;${visual.hue ? ` filter: hue-rotate(${visual.hue}deg) saturate(1.08);` : ''}`}
   data-gpu-scene
   data-scene={visual.scene}
   data-points={visual.points}

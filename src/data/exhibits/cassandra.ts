@@ -66,6 +66,17 @@ export const exhibit: DatabaseEntry = {
   ],
   visuals: [
     {
+      kind: 'gpu-scene',
+      title: 'Cassandra — ring partition field (live GPU scene)',
+      description:
+        'A live WebGPU particle field tinted to this exhibit. Plays only with WebGPU and no reduced-motion preference; a static storyboard renders for everyone else.',
+      scene: 'hnsw-layers',
+      points: 420,
+      seed: 4275,
+      fps: 30,
+      hue: 150,
+    },
+    {
       kind: 'pipeline',
       mode: 'write',
       database: 'generic',
