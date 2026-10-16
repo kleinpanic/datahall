@@ -18,6 +18,9 @@ import { exhibit as rocksdb } from '../data/exhibits/rocksdb';
 import { exhibit as mongodb } from '../data/exhibits/mongodb';
 import { exhibit as neo4j } from '../data/exhibits/neo4j';
 import { exhibit as clickhouse } from '../data/exhibits/clickhouse';
+import { exhibit as redis } from '../data/exhibits/redis';
+import { exhibit as elasticsearch } from '../data/exhibits/elasticsearch';
+import { exhibit as influxdb } from '../data/exhibits/influxdb';
 
 const raw: ReadonlyArray<unknown> = [
   sqlite,
@@ -29,6 +32,9 @@ const raw: ReadonlyArray<unknown> = [
   mongodb,
   neo4j,
   clickhouse,
+  redis,
+  elasticsearch,
+  influxdb,
 ];
 
 const validated: ReadonlyArray<DatabaseEntry> = raw.map((entry, index) => {

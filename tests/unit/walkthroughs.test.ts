@@ -11,6 +11,7 @@ import { lsmTrace, lsmRenderModel } from '../../src/lib/walkthroughs/lsm';
 import { mvccTrace } from '../../src/lib/walkthroughs/mvcc';
 import { graphBfsTrace, GRAPH_NODES, GRAPH_EDGES } from '../../src/lib/walkthroughs/graph-bfs';
 import { columnarTrace, columnarModel } from '../../src/lib/walkthroughs/columnar';
+import { skipListTrace, skipRenderModel, SKIP_KEYS } from '../../src/lib/walkthroughs/skiplist';
 import {
   bloomTrace,
   bloomBits,
@@ -192,6 +193,35 @@ describe('bloom walkthrough', () => {
 
   it('is deterministic', () => {
     expect(bloomTrace('membership')).toEqual(bloomTrace('membership'));
+  });
+});
+
+describe('skip-list walkthrough', () => {
+  it('walks the real search path and inserts at both levels', () => {
+    const t = skipListTrace();
+    expectSane(t);
+    expect(t.steps).toHaveLength(7);
+    const path = t.summary.find(([k]) => k === 'search path');
+    expect(path?.[1]).toContain('L2:12');
+    expect(path?.[1]).toContain('(34, 45)');
+    expect(t.summary.find(([k]) => k === 'new node 42')?.[1]).toContain('height 2');
+  });
+
+  it('render model: levels are decreasing subsets, heights honored', () => {
+    const m = skipRenderModel();
+    expect(m.levels.map((l) => l.level)).toEqual([2, 1, 0]);
+    expect(m.levels[0].keys).toEqual([12]);
+    expect(m.levels[2].keys).toEqual(SKIP_KEYS);
+    expect(m.newNode).toEqual({ key: 42, height: 2 });
+    for (let level = 1; level <= 2; level++) {
+      for (const id of m.levels[2 - level].keys) {
+        expect(m.levels[3 - level].keys).toContain(id);
+      }
+    }
+  });
+
+  it('is deterministic', () => {
+    expect(skipListTrace()).toEqual(skipListTrace());
   });
 });
 

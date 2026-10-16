@@ -286,6 +286,7 @@ const VisualWalkthrough = z.object({
     'graph-bfs',
     'columnar-scan',
     'bloom-filter',
+    'skiplist-memtable',
   ]),
   /** `alt` selects the builder's second scenario (see each walkthrough module). */
   variant: z.enum(['default', 'alt']).default('default'),

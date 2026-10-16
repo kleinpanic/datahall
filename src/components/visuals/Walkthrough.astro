@@ -42,6 +42,11 @@ import {
   BLOOM_BITS,
   BLOOM_K,
 } from '../../lib/walkthroughs/bloom';
+import {
+  skipListTrace,
+  skipRenderModel,
+  SKIP_KEYS as SKIP_KEYS_ORDER,
+} from '../../lib/walkthroughs/skiplist';
 import type { WtTrace } from '../../lib/walkthroughs/types';
 
 interface Props {
@@ -69,25 +74,31 @@ const trace: WtTrace = (() => {
       return columnarTrace((alt ? 'full-scan' : 'range-filter') as ColumnarVariant);
     case 'bloom-filter':
       return bloomTrace(alt ? 'insert-only' : 'membership');
+    case 'skiplist-memtable':
+      return skipListTrace(alt ? 'redis' : 'lsm');
   }
 })();
 
 const fp = findFalsePositive();
 
+const SKIP_X = (k: number) => 100 + SKIP_KEYS_ORDER.indexOf(k) * 100;
+
 const modeFamily = visual.mode.startsWith('bloom')
   ? 'bloom'
-  : visual.mode.startsWith('btree') || visual.mode === 'btree-search'
-    ? 'btree'
-    : visual.mode.startsWith('lsm')
-      ? 'lsm'
-      : visual.mode.startsWith('mvcc')
-        ? 'mvcc'
-        : visual.mode.startsWith('graph')
-          ? 'graph'
-          : 'columnar';
+  : visual.mode.startsWith('skiplist')
+    ? 'skiplist'
+    : visual.mode.startsWith('btree') || visual.mode === 'btree-search'
+      ? 'btree'
+      : visual.mode.startsWith('lsm')
+        ? 'lsm'
+        : visual.mode.startsWith('mvcc')
+          ? 'mvcc'
+          : visual.mode.startsWith('graph')
+            ? 'graph'
+            : 'columnar';
 
 const W = 720;
-const H = 340;
+const H = 380;
 
 /* ---------------- btree render data ---------------- */
 const bt = btreeRenderModel();
@@ -1146,6 +1157,144 @@ const toPx = (nx: number, ny: number, w = W, h = H) => ({ x: nx * w, y: ny * h }
                 </g>
               );
             })()}
+          </g>
+        )
+      }
+      {
+        modeFamily === 'skiplist' &&
+          skipRenderModel().levels.map(({ level, keys }) => (
+            <g>
+              <text x={12} y={38 + (2 - level) * 80} fill="#8b95a7" font-size="10">
+                {`L${level}`}
+              </text>
+              <rect
+                x={12}
+                y={50 + (2 - level) * 80}
+                width={54}
+                height={26}
+                rx={4}
+                fill="#11161d"
+                stroke="#3a4356"
+              />
+              <text x={24} y={67 + (2 - level) * 80} fill="#8b95a7" font-size="10">
+                head
+              </text>
+              {keys.map((k) => (
+                <g data-wt={`wt-sl-l${level}-${k}`}>
+                  <rect
+                    x={SKIP_X(k)}
+                    y={50 + (2 - level) * 80}
+                    width={64}
+                    height={26}
+                    rx={4}
+                    fill="#161c25"
+                    stroke="#5cffb1"
+                    opacity={level === 0 ? 0.9 : 0.6}
+                  />
+                  <text
+                    x={SKIP_X(k) + 32}
+                    y={67 + (2 - level) * 80}
+                    fill="#e6ebf4"
+                    font-size="11"
+                    text-anchor="middle"
+                  >
+                    {k}
+                  </text>
+                </g>
+              ))}
+            </g>
+          ))
+      }
+      {
+        modeFamily === 'skiplist' && (
+          <g>
+            <g data-wt="wt-sl-hop-2-head">
+              <line
+                x1={66}
+                y1={143}
+                x2={100}
+                y2={143}
+                stroke="#f5a623"
+                stroke-width="2"
+                marker-end="url(#wt-arrow-amber)"
+              />
+            </g>
+            <g data-wt="wt-sl-hop-1-12-34">
+              <line
+                x1={164}
+                y1={223}
+                x2={296}
+                y2={223}
+                stroke="#f5a623"
+                stroke-width="2"
+                marker-end="url(#wt-arrow-amber)"
+              />
+            </g>
+            <g data-wt="wt-sl-hop-0-34-45">
+              <line
+                x1={364}
+                y1={303}
+                x2={396}
+                y2={303}
+                stroke="#f5a623"
+                stroke-width="2"
+                marker-end="url(#wt-arrow-amber)"
+              />
+            </g>
+            <g data-wt="wt-sl-new-0">
+              <rect x={330} y={290} width={64} height={26} rx={4} fill="#2a1219" stroke="#f5a623" />
+              <text x={362} y={307} fill="#f5a623" font-size="11" text-anchor="middle">
+                42
+              </text>
+            </g>
+            <g data-wt="wt-sl-new-1">
+              <rect x={430} y={210} width={64} height={26} rx={4} fill="#2a1219" stroke="#f5a623" />
+              <text x={462} y={227} fill="#f5a623" font-size="11" text-anchor="middle">
+                42
+              </text>
+            </g>
+            <g data-wt="wt-sl-link-0">
+              <line
+                x1={364}
+                y1={303}
+                x2={330}
+                y2={303}
+                stroke="#f5a623"
+                marker-end="url(#wt-arrow-amber)"
+              />
+              <line
+                x1={394}
+                y1={303}
+                x2={400}
+                y2={303}
+                stroke="#f5a623"
+                marker-end="url(#wt-arrow-amber)"
+              />
+            </g>
+            <g data-wt="wt-sl-link-1">
+              <line
+                x1={364}
+                y1={223}
+                x2={430}
+                y2={223}
+                stroke="#f5a623"
+                marker-end="url(#wt-arrow-amber)"
+              />
+              <line
+                x1={494}
+                y1={223}
+                x2={500}
+                y2={223}
+                stroke="#f5a623"
+                marker-end="url(#wt-arrow-amber)"
+              />
+            </g>
+            <g data-wt="wt-sl-summary">
+              <rect x={12} y={336} width={696} height={30} rx={6} fill="#10201c" stroke="#00ffe1" />
+              <text x={20} y={356} fill="#00ffe1" font-size="11">
+                high levels = fewer hops · heights from coin flips · no rebalancing, ever
+              </text>
+            </g>
           </g>
         )
       }

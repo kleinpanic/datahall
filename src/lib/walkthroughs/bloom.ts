@@ -86,7 +86,6 @@ export function bloomTrace(variant: BloomVariant = 'membership'): WtTrace {
 
   for (const { id, kind, key } of lookups) {
     const bits = bitsOf(id);
-    const allSet = bits.every((b) => state[b]);
     if (kind === 'hit') {
       steps.push({
         title: `lookup(${id}) — all bits set: possibly present`,

@@ -37,8 +37,8 @@ describe('DatabaseEntry schema', () => {
 });
 
 describe('exhibit corpus', () => {
-  it('contains exactly nine exhibits', () => {
-    expect(exhibits).toHaveLength(9);
+  it('contains exactly twelve exhibits', () => {
+    expect(exhibits).toHaveLength(12);
   });
 
   it('exposes unique slugs', () => {
@@ -46,7 +46,7 @@ describe('exhibit corpus', () => {
     expect(new Set(slugs).size).toBe(slugs.length);
   });
 
-  it('exposes the nine expected slugs', () => {
+  it('exposes the twelve expected slugs', () => {
     expect(new Set(exhibitSlugs())).toEqual(
       new Set([
         'sqlite',
@@ -58,6 +58,9 @@ describe('exhibit corpus', () => {
         'mongodb',
         'neo4j',
         'clickhouse',
+        'redis',
+        'elasticsearch',
+        'influxdb',
       ]),
     );
   });
