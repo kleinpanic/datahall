@@ -287,6 +287,7 @@ const VisualWalkthrough = z.object({
     'columnar-scan',
     'bloom-filter',
     'skiplist-memtable',
+    'inverted-index',
   ]),
   /** `alt` selects the builder's second scenario (see each walkthrough module). */
   variant: z.enum(['default', 'alt']).default('default'),

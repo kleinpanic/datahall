@@ -83,6 +83,23 @@ export const exhibit: DatabaseEntry = {
       ],
     },
     {
+      kind: 'walkthrough',
+      mode: 'inverted-index',
+      variant: 'default',
+      title: 'Inverted index: build, then intersect a two-term AND',
+      description:
+        'Watch the analyzer fill four postings lists, then answer a two-term AND query by sorted intersection — exact matches only, the structure every search engine leads with.',
+      caption:
+        'Teaching model: 5 documents, 4 terms. Lucene adds scores, positions, and per-segment posting lists on top of the same shape.',
+      concepts: ['inverted index', 'postings list', 'AND intersection'],
+      sourceRefs: [
+        {
+          label: 'Elasticsearch: Full-text queries',
+          href: 'https://www.elastic.co/guide/en/elasticsearch/reference/current/full-text-queries.html',
+        },
+      ],
+    },
+    {
       kind: 'index-stats',
       title: 'Segment shape under merging',
       description:

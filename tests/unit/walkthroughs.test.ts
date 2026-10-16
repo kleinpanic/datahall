@@ -21,6 +21,7 @@ import {
   BLOOM_BITS,
   BLOOM_K,
 } from '../../src/lib/walkthroughs/bloom';
+import { invertedTrace, intersect } from '../../src/lib/walkthroughs/inverted';
 import type { WtTrace } from '../../src/lib/walkthroughs/types';
 
 function expectSane(trace: WtTrace): void {
@@ -193,6 +194,28 @@ describe('bloom walkthrough', () => {
 
   it('is deterministic', () => {
     expect(bloomTrace('membership')).toEqual(bloomTrace('membership'));
+  });
+});
+
+describe('inverted index walkthrough', () => {
+  it('AND query intersects to exactly d3', () => {
+    const t = invertedTrace();
+    expectSane(t);
+    expect(t.steps).toHaveLength(4 + 1 + 1 + 1 + 1);
+    const hitStep = t.steps.find((s) => s.title.startsWith('Intersection'));
+    expect(hitStep?.title).toContain('d3');
+    expect(hitStep?.reveal).toContain('wt-ii-hit-d3');
+  });
+
+  it('postings model matches the trace reveals', () => {
+    const t = invertedTrace();
+    expect(t.summary.find(([k]) => k === 'structure')?.[1]).toContain('postings');
+    expect(intersect(['d1', 'd3'], ['d3', 'd5'])).toEqual(['d3']);
+    expect(intersect(['d1'], ['d2'])).toEqual([]);
+  });
+
+  it('is deterministic', () => {
+    expect(invertedTrace()).toEqual(invertedTrace());
   });
 });
 

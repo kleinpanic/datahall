@@ -47,6 +47,7 @@ import {
   skipRenderModel,
   SKIP_KEYS as SKIP_KEYS_ORDER,
 } from '../../lib/walkthroughs/skiplist';
+import { invertedTrace, II_TERMS, II_DOCS } from '../../lib/walkthroughs/inverted';
 import type { WtTrace } from '../../lib/walkthroughs/types';
 
 interface Props {
@@ -76,6 +77,8 @@ const trace: WtTrace = (() => {
       return bloomTrace(alt ? 'insert-only' : 'membership');
     case 'skiplist-memtable':
       return skipListTrace(alt ? 'redis' : 'lsm');
+    case 'inverted-index':
+      return invertedTrace(alt ? ['merge', 'lsm'] : ['wired', 'lsm']);
   }
 })();
 
@@ -85,8 +88,10 @@ const SKIP_X = (k: number) => 100 + SKIP_KEYS_ORDER.indexOf(k) * 100;
 
 const modeFamily = visual.mode.startsWith('bloom')
   ? 'bloom'
-  : visual.mode.startsWith('skiplist')
-    ? 'skiplist'
+  : visual.mode.startsWith('inverted')
+    ? 'inverted'
+    : visual.mode.startsWith('skiplist')
+      ? 'skiplist'
     : visual.mode.startsWith('btree') || visual.mode === 'btree-search'
       ? 'btree'
       : visual.mode.startsWith('lsm')
@@ -1293,6 +1298,98 @@ const toPx = (nx: number, ny: number, w = W, h = H) => ({ x: nx * w, y: ny * h }
               <rect x={12} y={336} width={696} height={30} rx={6} fill="#10201c" stroke="#00ffe1" />
               <text x={20} y={356} fill="#00ffe1" font-size="11">
                 high levels = fewer hops · heights from coin flips · no rebalancing, ever
+              </text>
+            </g>
+          </g>
+        )
+      }
+      {
+        modeFamily === 'inverted' && (
+          <g font-family="ui-monospace, monospace">
+            <text x={12} y={26} fill="#8b95a7" font-size="11">
+              postings lists — term → [documents containing it] · query: "wired AND lsm"
+            </text>
+            {(() => {
+              const terms = Object.entries(II_TERMS);
+              const qTerms: Record<string, string> = { wired: 'wt-ii-fetch-a', lsm: 'wt-ii-fetch-b' };
+              return terms.map(([term, docs]) => {
+                const rowY = 44 + terms.findIndex(([t]) => t === term) * 52;
+                const isQueried = term === 'wired' || term === 'lsm';
+                return (
+                  <g>
+                    <text x={12} y={rowY + 18} fill="#e6ebf4" font-size="12">
+                      "{term}"
+                    </text>
+                    {II_DOCS.map((d) => {
+                      const x = 130 + II_DOCS.indexOf(d) * 96;
+                      const member = docs.includes(d);
+                      const fetchKey = term === 'wired' ? 'wt-ii-fetch-a' : 'wt-ii-fetch-b';
+                      return (
+                        <g>
+                          <rect
+                            x={x}
+                            y={rowY}
+                            width={80}
+                            height={30}
+                            rx={4}
+                            fill={member ? '#161c25' : '#0d1117'}
+                            stroke={member ? '#5cffb1' : '#2a3342'}
+                            stroke-dasharray={member ? undefined : '3 3'}
+                          />
+                          {member && (
+                            <text x={x + 40} y={rowY + 19} fill="#e6ebf4" font-size="11" text-anchor="middle" data-wt={`wt-ii-post-${term}-${d}`}>
+                              {d}
+                            </text>
+                          )}
+                          {isQueried && member && (
+                            <rect
+                              x={x}
+                              y={rowY}
+                              width={80}
+                              height={30}
+                              rx={4}
+                              fill="none"
+                              stroke="#f5a623"
+                              stroke-width="1.5"
+                              data-wt={fetchKey}
+                            />
+                          )}
+                          {term === 'lsm' && member && d === 'd3' && (
+                            <rect
+                              x={x}
+                              y={rowY}
+                              width={80}
+                              height={30}
+                              rx={4}
+                              fill="none"
+                              stroke="#ff5d8f"
+                              stroke-width="2.5"
+                              data-wt="wt-ii-hit-d3"
+                            />
+                          )}
+                        </g>
+                      );
+                    })}
+                  </g>
+                );
+              });
+            })()}
+            <g data-wt="wt-ii-q-wired">
+              <rect x={12} y={252} width={200} height={24} rx={4} fill="#10201c" stroke="#f5a623" />
+              <text x={20} y={269} fill="#f5a623" font-size="10">
+                fetch "wired" → [d1, d3]
+              </text>
+            </g>
+            <g data-wt="wt-ii-q-lsm">
+              <rect x={340} y={252} width={200} height={24} rx={4} fill="#10201c" stroke="#f5a623" />
+              <text x={348} y={269} fill="#f5a623" font-size="10">
+                fetch "lsm" → [d3, d5]
+              </text>
+            </g>
+            <g data-wt="wt-ii-summary">
+              <rect x={12} y={292} width={696} height={30} rx={6} fill="#10201c" stroke="#00ffe1" />
+              <text x={20} y={312} fill="#00ffe1" font-size="11">
+                AND = sorted intersection: d3 answers both terms exactly — no false positives, no false negatives
               </text>
             </g>
           </g>
