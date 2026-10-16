@@ -4,13 +4,12 @@ import { exhibits } from '~/lib/exhibits';
 
 describe('gallery filter', () => {
   it('returns all when no filter', () => {
-    expect(filterExhibits(exhibits, {})).toHaveLength(12);
+    expect(filterExhibits(exhibits, {})).toHaveLength(15);
   });
 
   it('filters by query on name/tagline', () => {
     const res = filterExhibits(exhibits, { query: 'postgres' });
-    expect(res.length).toBe(1);
-    expect(res[0].slug).toBe('postgresql');
+    expect(res.map((e) => e.slug).sort()).toEqual(['cockroachdb', 'duckdb', 'postgresql']);
   });
 
   it('filters by paradigm', () => {

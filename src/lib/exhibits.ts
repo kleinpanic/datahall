@@ -21,6 +21,9 @@ import { exhibit as clickhouse } from '../data/exhibits/clickhouse';
 import { exhibit as redis } from '../data/exhibits/redis';
 import { exhibit as elasticsearch } from '../data/exhibits/elasticsearch';
 import { exhibit as influxdb } from '../data/exhibits/influxdb';
+import { exhibit as cassandra } from '../data/exhibits/cassandra';
+import { exhibit as duckdb } from '../data/exhibits/duckdb';
+import { exhibit as cockroachdb } from '../data/exhibits/cockroachdb';
 
 const raw: ReadonlyArray<unknown> = [
   sqlite,
@@ -35,6 +38,9 @@ const raw: ReadonlyArray<unknown> = [
   redis,
   elasticsearch,
   influxdb,
+  cassandra,
+  duckdb,
+  cockroachdb,
 ];
 
 const validated: ReadonlyArray<DatabaseEntry> = raw.map((entry, index) => {

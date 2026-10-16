@@ -35,6 +35,10 @@
   :root {
     color-scheme: dark;
   }
+  html,
+  body {
+    overflow-x: clip;
+  }
   html {
     background: var(--color-bg);
     color: var(--color-fg);
