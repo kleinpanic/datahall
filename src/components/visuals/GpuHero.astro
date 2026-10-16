@@ -92,6 +92,7 @@ for (let i = 0; i < COUNT; i += 2) {
   import { mountGpuScene } from '../../lib/vgpu-runtime';
   import { createBloomChain } from '../../lib/vgpu-bloom';
   import latticeShader from '../../wgsl/gpu-hero-lattice.wgsl';
+  import bgShader from '../../wgsl/hero-bg.wgsl';
 
   const el = document.querySelector<HTMLElement>('[data-gpu-hero]');
   const canvas = el?.querySelector('canvas');
@@ -104,6 +105,7 @@ for (let i = 0; i < COUNT; i += 2) {
       canvas,
       fps: 30,
       build: async ({ vgpu, gpu, surface }) => {
+        const bg = vgpu.effect(gpu, bgShader, { set: { params: { time: 0 } } });
         const pts = vgpu.draw(gpu, {
           shader: latticeShader,
           instances: count,
@@ -111,6 +113,7 @@ for (let i = 0; i < COUNT; i += 2) {
         });
         const chain = createBloomChain(vgpu, gpu, surface.size);
         await Promise.all([
+          bg.compile({ colors: ['rgba16float'] }),
           pts.compile({ colors: ['rgba16float'] }),
           chain.prewarm(surface.format),
         ]);
@@ -124,10 +127,14 @@ for (let i = 0; i < COUNT; i += 2) {
               lastH = sh;
               chain.resize(surface.size);
             }
+            bg.set({ params: { time } });
             pts.set({
               params: { time, seed, aspect: sw / Math.max(1, sh) },
             });
-            frame.pass({ target: chain.scene }, (p) => p.draw(pts));
+            frame.pass({ target: chain.scene }, (p) => {
+              p.draw(bg);
+              p.draw(pts);
+            });
             chain.render(frame, surface, { strength: 0.9, time });
           },
           destroy() {

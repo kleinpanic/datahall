@@ -25,6 +25,7 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "@vgpu/wgsl": "0.6.0",
+    "@vgpu/wgsl-std": "0.6.0",
     "astro": "^7.3.2",
     "tailwindcss": "^4.3.3",
     "vgpu": "^0.6.0",
