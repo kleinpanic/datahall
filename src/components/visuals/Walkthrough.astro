@@ -92,15 +92,15 @@ const modeFamily = visual.mode.startsWith('bloom')
     ? 'inverted'
     : visual.mode.startsWith('skiplist')
       ? 'skiplist'
-    : visual.mode.startsWith('btree') || visual.mode === 'btree-search'
-      ? 'btree'
-      : visual.mode.startsWith('lsm')
-        ? 'lsm'
-        : visual.mode.startsWith('mvcc')
-          ? 'mvcc'
-          : visual.mode.startsWith('graph')
-            ? 'graph'
-            : 'columnar';
+      : visual.mode.startsWith('btree') || visual.mode === 'btree-search'
+        ? 'btree'
+        : visual.mode.startsWith('lsm')
+          ? 'lsm'
+          : visual.mode.startsWith('mvcc')
+            ? 'mvcc'
+            : visual.mode.startsWith('graph')
+              ? 'graph'
+              : 'columnar';
 
 const W = 720;
 const H = 380;
@@ -1311,7 +1311,7 @@ const toPx = (nx: number, ny: number, w = W, h = H) => ({ x: nx * w, y: ny * h }
             </text>
             {(() => {
               const terms = Object.entries(II_TERMS);
-              const qTerms: Record<string, string> = { wired: 'wt-ii-fetch-a', lsm: 'wt-ii-fetch-b' };
+              const qTerms = { wired: 'wt-ii-fetch-a', lsm: 'wt-ii-fetch-b' };
               return terms.map(([term, docs]) => {
                 const rowY = 44 + terms.findIndex(([t]) => t === term) * 52;
                 const isQueried = term === 'wired' || term === 'lsm';
@@ -1337,7 +1337,14 @@ const toPx = (nx: number, ny: number, w = W, h = H) => ({ x: nx * w, y: ny * h }
                             stroke-dasharray={member ? undefined : '3 3'}
                           />
                           {member && (
-                            <text x={x + 40} y={rowY + 19} fill="#e6ebf4" font-size="11" text-anchor="middle" data-wt={`wt-ii-post-${term}-${d}`}>
+                            <text
+                              x={x + 40}
+                              y={rowY + 19}
+                              fill="#e6ebf4"
+                              font-size="11"
+                              text-anchor="middle"
+                              data-wt={`wt-ii-post-${term}-${d}`}
+                            >
                               {d}
                             </text>
                           )}
@@ -1381,7 +1388,15 @@ const toPx = (nx: number, ny: number, w = W, h = H) => ({ x: nx * w, y: ny * h }
               </text>
             </g>
             <g data-wt="wt-ii-q-lsm">
-              <rect x={340} y={252} width={200} height={24} rx={4} fill="#10201c" stroke="#f5a623" />
+              <rect
+                x={340}
+                y={252}
+                width={200}
+                height={24}
+                rx={4}
+                fill="#10201c"
+                stroke="#f5a623"
+              />
               <text x={348} y={269} fill="#f5a623" font-size="10">
                 fetch "lsm" → [d3, d5]
               </text>
@@ -1389,7 +1404,8 @@ const toPx = (nx: number, ny: number, w = W, h = H) => ({ x: nx * w, y: ny * h }
             <g data-wt="wt-ii-summary">
               <rect x={12} y={292} width={696} height={30} rx={6} fill="#10201c" stroke="#00ffe1" />
               <text x={20} y={312} fill="#00ffe1" font-size="11">
-                AND = sorted intersection: d3 answers both terms exactly — no false positives, no false negatives
+                AND = sorted intersection: d3 answers both terms exactly — no false positives, no
+                false negatives
               </text>
             </g>
           </g>
