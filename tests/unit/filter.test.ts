@@ -4,7 +4,7 @@ import { exhibits } from '~/lib/exhibits';
 
 describe('gallery filter', () => {
   it('returns all when no filter', () => {
-    expect(filterExhibits(exhibits, {})).toHaveLength(19);
+    expect(filterExhibits(exhibits, {})).toHaveLength(25);
   });
 
   it('filters by query on name/tagline', () => {
@@ -13,6 +13,7 @@ describe('gallery filter', () => {
       'cockroachdb',
       'duckdb',
       'postgresql',
+      'questdb',
       'timescaledb',
     ]);
   });

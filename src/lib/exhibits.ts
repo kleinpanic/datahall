@@ -28,6 +28,12 @@ import { exhibit as dynamodb } from '../data/exhibits/dynamodb';
 import { exhibit as couchdb } from '../data/exhibits/couchdb';
 import { exhibit as timescaledb } from '../data/exhibits/timescaledb';
 import { exhibit as foundationdb } from '../data/exhibits/foundationdb';
+import { exhibit as bigtable } from '../data/exhibits/bigtable';
+import { exhibit as couchbase } from '../data/exhibits/couchbase';
+import { exhibit as scylladb } from '../data/exhibits/scylladb';
+import { exhibit as etcd } from '../data/exhibits/etcd';
+import { exhibit as rethinkdb } from '../data/exhibits/rethinkdb';
+import { exhibit as questdb } from '../data/exhibits/questdb';
 
 const raw: ReadonlyArray<unknown> = [
   sqlite,
@@ -49,6 +55,12 @@ const raw: ReadonlyArray<unknown> = [
   couchdb,
   timescaledb,
   foundationdb,
+  bigtable,
+  couchbase,
+  scylladb,
+  etcd,
+  rethinkdb,
+  questdb,
 ];
 
 const validated: ReadonlyArray<DatabaseEntry> = raw.map((entry, index) => {
