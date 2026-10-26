@@ -20,7 +20,7 @@
     "test": "pnpm run test:unit && pnpm run test:e2e"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.22.0"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
@@ -51,6 +51,11 @@
     "onlyBuiltDependencies": [
       "esbuild",
       "sharp"
-    ]
+    ],
+    "overrides": {
+      "@modelcontextprotocol/server@>=2.0.0 <2.3.0": "^2.3.0",
+      "undici@>=8.0.0 <8.12.2": "^8.12.2",
+      "fast-uri@>=3.0.0 <3.1.9": "^3.1.9"
+    }
   }
 }
