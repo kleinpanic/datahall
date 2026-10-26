@@ -21,6 +21,22 @@ export const NAV: ReadonlyArray<{ label: string; href: string }> = [
   { label: 'About', href: '/about' },
 ];
 
+/**
+ * Whether a NAV href is the current page. `pathname` comes from `Astro.url`
+ * and carries the base prefix (`/datahall/gallery/`), while NAV hrefs are
+ * base-relative (`/gallery`), so strip the base before comparing.
+ */
+export function isNavActive(pathname: string, href: string, base: string = SITE_BASE): boolean {
+  const prefix = base.replace(/\/$/, '');
+  let path = pathname;
+  if (prefix && (path === prefix || path.startsWith(`${prefix}/`))) {
+    path = path.slice(prefix.length);
+  }
+  path = path.replace(/\/$/, '') || '/';
+  if (href === '/') return path === '/';
+  return path === href || path.startsWith(`${href}/`);
+}
+
 /** Build an absolute, base-prefixed path. */
 export function withBase(path: string): string {
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
