@@ -3,15 +3,16 @@
 > An interactive web museum for database internals.
 
 datahall teaches the storage engines, transaction models, and query evaluators
-behind five production-grade databases: **SQLite**, **PostgreSQL**,
-**MariaDB**, **LanceDB**, and **Qdrant**. Each exhibit is a static page with
+behind 25 production databases, from **SQLite**, **PostgreSQL**, and
+**MariaDB** to **RocksDB**, **ClickHouse**, **LanceDB**, and **Qdrant** (one
+file per exhibit under `src/data/exhibits/`). Each exhibit is a static page with
 hand-authored SVG diagrams, executable schema, and short annotated walk-throughs.
 
 The site is statically generated and deployed to GitHub Pages.
 
 ## Tech stack
 
-- [Astro 5](https://astro.build/) — static-site framework
+- [Astro 7](https://astro.build/) — static-site framework
 - [Tailwind CSS v4](https://tailwindcss.com/) via `@tailwindcss/vite`
 - [Zod](https://zod.dev/) — runtime schema for exhibit data
 - [vgpu](https://vgpu.sh) — WebGPU runtime behind the animated GPU scenes
@@ -41,28 +42,45 @@ shader layout, and how to add a new scene.
 
 ## Run locally
 
+Requires Node.js ≥ 22.22 (Astro 7's minimum; `.nvmrc` pins 24) and pnpm. CI
+uses pnpm 9.
+
 ```bash
 pnpm install
-pnpm run dev          # http://localhost:4321
+pnpm run dev          # http://localhost:4321/datahall/
 ```
 
-> **pnpm ≥ 10 note:** local installs may prompt to approve dependency build
-> scripts (`@vgpu/adapter-node`, `webgpu`, `esbuild`). The approvals are
-> already recorded in `pnpm-workspace.yaml` (`allowBuilds`), so a plain
-> `pnpm install` is enough. CI pins pnpm 9, which ignores that field.
+> **Build scripts note:** pnpm 9 and 10 only run the dependency build scripts
+> listed in `package.json` → `pnpm.onlyBuiltDependencies` (`esbuild`, `sharp`)
+> and print a warning that `@vgpu/adapter-node` and `webgpu` were skipped.
+> That is expected: the site, unit tests, and e2e tests don't need them. Only
+> `pnpm run test:gpu` (headless Dawn rendering) does — run
+> `pnpm approve-builds` first if you want it. The `allowBuilds` entry in
+> `pnpm-workspace.yaml` is only read by pnpm 11.
 
 ## Build for deploy
 
 ```bash
 pnpm run build        # outputs to dist/
-pnpm run preview      # serves dist/ locally
+pnpm run preview      # serves dist/ at http://localhost:4321/datahall/
 ```
 
 ## Test
 
 ```bash
+pnpm run lint
+pnpm run typecheck    # astro check
 pnpm run test:unit    # vitest, schema + registry validation
-pnpm run test:e2e     # browser layout + smoke checks (CI runs these; needs `pnpm run preview` locally)
+```
+
+The Playwright e2e suite runs against a built site served by `preview`; it has
+no `webServer` config, so start the server yourself:
+
+```bash
+pnpm exec playwright install chromium   # first time only
+pnpm run build
+pnpm run preview &                      # leave running
+pnpm run test:e2e
 ```
 
 ## Deploy

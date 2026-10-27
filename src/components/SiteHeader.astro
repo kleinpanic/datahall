@@ -1,7 +1,7 @@
 ---
-import { NAV, SITE_TITLE, withBase } from '../consts';
+import { NAV, SITE_TITLE, isNavActive, withBase } from '../consts';
 
-const pathname = Astro.url.pathname.replace(/\/$/, '') || '/';
+const pathname = Astro.url.pathname;
 ---
 
 <header
@@ -15,8 +15,7 @@ const pathname = Astro.url.pathname.replace(/\/$/, '') || '/';
     <nav class="flex items-center gap-1 text-sm">
       {
         NAV.map((item) => {
-          const isActive =
-            pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+          const isActive = isNavActive(pathname, item.href);
           return (
             <a
               href={withBase(item.href)}

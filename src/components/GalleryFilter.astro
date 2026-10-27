@@ -1,5 +1,5 @@
 ---
-import type { DatabaseEntry, DatabaseFamily } from '../lib/schema';
+import { Paradigm, DatabaseFamily, type DatabaseEntry } from '../lib/schema';
 import ExhibitCard from './ExhibitCard.astro';
 
 interface Props {
@@ -8,25 +8,10 @@ interface Props {
 
 const { exhibits } = Astro.props;
 
-const paradigms = [
-  'embedded-sql',
-  'client-server',
-  'server',
-  'embedded-vector',
-  'server-vector',
-] as const;
-const families: DatabaseFamily[] = [
-  'relational',
-  'key-value',
-  'document',
-  'wide-column',
-  'graph',
-  'time-series',
-  'search',
-  'vector',
-  'olap-columnar',
-  'lsm-log-structured',
-];
+// Derive chip sets from the schema enums so a new paradigm or family (e.g.
+// `embedded-kv`) is filterable without editing this component.
+const paradigms = Paradigm.options;
+const families = DatabaseFamily.options;
 
 // Server-rendered initial state (all)
 const initialFiltered = exhibits;
@@ -138,11 +123,7 @@ const initialFiltered = exhibits;
 
 <script>
   // Client-side reactive filter island
-  interface FilterState {
-    query: string;
-    paradigm: string | null;
-    families: string[];
-  }
+  import { parseFilterParams, type FilterState } from '../lib/filter';
 
   function initGalleryFilter(): void {
     const root = document.getElementById('gallery-filter');
@@ -264,27 +245,24 @@ const initialFiltered = exhibits;
       }
     });
 
-    // Restore state from URL
-    const params = new URLSearchParams(window.location.search);
-    if (params.has('q')) {
-      state.query = params.get('q') ?? '';
-      searchInput.value = state.query;
-    }
-    if (params.has('p')) {
-      const p = params.get('p');
-      if (p) {
-        state.paradigm = p;
-        const btn = paradigmContainer.querySelector(`[data-paradigm="${p}"]`);
-        btn?.classList.add('active');
-      }
-    }
-    if (params.has('f')) {
-      state.families = (params.get('f') ?? '').split(',').filter(Boolean);
-      state.families.forEach((fam) => {
-        const btn = familyContainer.querySelector(`[data-family="${fam}"]`);
-        btn?.classList.add('active');
-      });
-    }
+    // Restore state from URL. Only values that match a rendered chip are
+    // accepted; anything else in the query string is ignored.
+    const chipValues = (container: HTMLElement, attr: 'paradigm' | 'family'): string[] =>
+      Array.from(container.querySelectorAll<HTMLElement>(`[data-${attr}]`)).map(
+        (el) => el.dataset[attr] ?? '',
+      );
+    state = parseFilterParams(
+      window.location.search,
+      chipValues(paradigmContainer, 'paradigm'),
+      chipValues(familyContainer, 'family'),
+    );
+    searchInput.value = state.query;
+    paradigmContainer.querySelectorAll<HTMLElement>('[data-paradigm]').forEach((btn) => {
+      if (btn.dataset.paradigm === state.paradigm) btn.classList.add('active');
+    });
+    familyContainer.querySelectorAll<HTMLElement>('[data-family]').forEach((btn) => {
+      if (state.families.includes(btn.dataset.family ?? '')) btn.classList.add('active');
+    });
 
     applyFilter();
   }

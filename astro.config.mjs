@@ -18,7 +18,9 @@ export default defineConfig({
   vite: {
     plugins: [tailwindcss(), wgslVitePlugin()],
   },
+  // Redirect destinations are emitted verbatim (Astro does not prefix `base`),
+  // so build the target from the base path ourselves.
   redirects: {
-    '/databases': '/gallery',
+    '/databases': `${base.replace(/\/?$/, '/')}gallery`,
   },
 });
