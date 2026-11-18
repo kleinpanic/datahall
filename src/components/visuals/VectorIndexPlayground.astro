@@ -513,50 +513,46 @@ const toSvg = (nx: number, ny: number) => ({ x: nx * viewW, y: ny * viewH });
     'relative',
     isHnsw && 'overflow-hidden rounded-lg border border-[var(--color-border)] bg-[#0a0e13]',
   ]}
-  {...isHnsw
+  {...(isHnsw
     ? {
         'data-hnsw-gpu': '',
         'data-nodes': hnswStash?.n,
         'data-edges': hnswStash?.m,
         'data-fps': 30,
       }
-    : {}}
+    : {})}
 >
-  {
-    isHnsw && (
-      <canvas
-        class="absolute inset-0 z-10 h-full w-full cursor-crosshair opacity-0 transition-opacity duration-700"
-        aria-hidden="true"
-      />
-    )
-  }
+  {isHnsw && (
+    <canvas
+      class="absolute inset-0 z-10 h-full w-full cursor-crosshair opacity-0 transition-opacity duration-700"
+      aria-hidden="true"
+    />
+  )}
 
-  {
-    isHnsw && (
-      <div
-        class="pointer-events-none absolute inset-0 z-20 font-mono text-[0.6rem] text-[var(--color-fg-muted)]"
-        data-hnsw-labels
-        hidden
-      >
-        <span class="absolute top-[3%] left-2 rounded bg-black/60 px-1.5 py-0.5">
-          L{graph.layers - 1} · sparse · entry
-        </span>
-        {graph.layers > 2 && (
-          <span class="absolute top-[33%] left-2 rounded bg-black/60 px-1.5 py-0.5">L1</span>
-        )}
-        <span class="absolute top-[66%] left-2 rounded bg-black/60 px-1.5 py-0.5">
-          L0 · dense · base
-        </span>
-        <span class="absolute top-[3%] right-2 rounded bg-black/60 px-1.5 py-0.5 text-[var(--color-accent)]">
-          live · WebGPU — hover the graph · click to replay the search
-        </span>
-      </div>
-    )
-  }
+  {isHnsw && (
+    <div
+      class="pointer-events-none absolute inset-0 z-20 font-mono text-[0.6rem] text-[var(--color-fg-muted)]"
+      data-hnsw-labels
+      hidden
+    >
+      <span class="absolute top-[3%] left-2 rounded bg-black/60 px-1.5 py-0.5">
+        L{graph.layers - 1} · sparse · entry
+      </span>
+      {graph.layers > 2 && (
+        <span class="absolute top-[33%] left-2 rounded bg-black/60 px-1.5 py-0.5">L1</span>
+      )}
+      <span class="absolute top-[66%] left-2 rounded bg-black/60 px-1.5 py-0.5">
+        L0 · dense · base
+      </span>
+      <span class="absolute top-[3%] right-2 rounded bg-black/60 px-1.5 py-0.5 text-[var(--color-accent)]">
+        live · WebGPU — hover the graph · click to replay the search
+      </span>
+    </div>
+  )}
 
   <div
     class:list={[{ 'transition-opacity duration-700': isHnsw }]}
-    {...isHnsw ? { 'data-hnsw-static': '' } : {}}
+    {...(isHnsw ? { 'data-hnsw-static': '' } : {})}
   >
     <svg
       viewBox={`0 0 ${viewW} ${viewH}`}
@@ -568,411 +564,376 @@ const toSvg = (nx: number, ny: number) => ({ x: nx * viewW, y: ny * viewH });
       data-vector-show-topk={visual.showTopK ? 'true' : 'false'}
     >
       {/* layer labels */}
-      {
-        isHnsw && (
-          <g>
-            <text x={8} y={40} fill="#8b95a7" font-size="10" font-family="ui-monospace, monospace">
-              L{graph.layers - 1} (top)
+      {isHnsw && (
+        <g>
+          <text x={8} y={40} fill="#8b95a7" font-size="10" font-family="ui-monospace, monospace">
+            L{graph.layers - 1} (top)
+          </text>
+          {graph.layers > 2 && (
+            <text x={8} y={160} fill="#8b95a7" font-size="10" font-family="ui-monospace, monospace">
+              L1
             </text>
-            {graph.layers > 2 && (
-              <text
-                x={8}
-                y={160}
-                fill="#8b95a7"
-                font-size="10"
-                font-family="ui-monospace, monospace"
-              >
-                L1
-              </text>
-            )}
-            <text x={8} y={300} fill="#8b95a7" font-size="10" font-family="ui-monospace, monospace">
-              L0 (base)
-            </text>
-          </g>
-        )
-      }
+          )}
+          <text x={8} y={300} fill="#8b95a7" font-size="10" font-family="ui-monospace, monospace">
+            L0 (base)
+          </text>
+        </g>
+      )}
 
       {/* edges (real graph) */}
-      {
-        isHnsw && (
-          <g data-edges>
-            {displayEdges.map((e, i) => {
-              const pa = toSvg(displayNodes[e.a].x, displayNodes[e.a].y);
-              const pb = toSvg(displayNodes[e.b].x, displayNodes[e.b].y);
-              const color =
-                e.layer === -1
-                  ? '#f5a62322'
-                  : e.layer > 1
-                    ? '#00ffe144'
-                    : e.layer > 0
-                      ? '#7c5cff44'
-                      : '#ff5d8f33';
-              return (
-                <line
-                  x1={pa.x}
-                  y1={pa.y}
-                  x2={pb.x}
-                  y2={pb.y}
-                  stroke={color}
-                  data-eid={i}
-                  data-elayer={e.layer}
-                />
-              );
-            })}
-          </g>
-        )
-      }
+      {isHnsw && (
+        <g data-edges>
+          {displayEdges.map((e, i) => {
+            const pa = toSvg(displayNodes[e.a].x, displayNodes[e.a].y);
+            const pb = toSvg(displayNodes[e.b].x, displayNodes[e.b].y);
+            const color =
+              e.layer === -1
+                ? '#f5a62322'
+                : e.layer > 1
+                  ? '#00ffe144'
+                  : e.layer > 0
+                    ? '#7c5cff44'
+                    : '#ff5d8f33';
+            return (
+              <line
+                x1={pa.x}
+                y1={pa.y}
+                x2={pb.x}
+                y2={pb.y}
+                stroke={color}
+                data-eid={i}
+                data-elayer={e.layer}
+              />
+            );
+          })}
+        </g>
+      )}
 
       {/* walked path (real trace) */}
-      {
-        isHnsw && (
-          <g data-walk>
-            {pathEdges.map((pe, i) => {
-              const e = displayEdges[pe.e];
-              const pa = toSvg(displayNodes[e.a].x, displayNodes[e.a].y);
-              const pb = toSvg(displayNodes[e.b].x, displayNodes[e.b].y);
-              return (
-                <line
-                  x1={pa.x}
-                  y1={pa.y}
-                  x2={pb.x}
-                  y2={pb.y}
-                  stroke="#f5a623"
-                  stroke-width="2.4"
-                  stroke-linecap="round"
-                  stroke-dasharray="8 4"
-                  class="dh-dash"
-                  data-walk-edge={i}
-                  data-walk-phase={pe.phase}
-                />
-              );
-            })}
-          </g>
-        )
-      }
+      {isHnsw && (
+        <g data-walk>
+          {pathEdges.map((pe, i) => {
+            const e = displayEdges[pe.e];
+            const pa = toSvg(displayNodes[e.a].x, displayNodes[e.a].y);
+            const pb = toSvg(displayNodes[e.b].x, displayNodes[e.b].y);
+            return (
+              <line
+                x1={pa.x}
+                y1={pa.y}
+                x2={pb.x}
+                y2={pb.y}
+                stroke="#f5a623"
+                stroke-width="2.4"
+                stroke-linecap="round"
+                stroke-dasharray="8 4"
+                class="dh-dash"
+                data-walk-edge={i}
+                data-walk-phase={pe.phase}
+              />
+            );
+          })}
+        </g>
+      )}
 
       {/* IVF-PQ coarse clusters (real assignment by distance) */}
-      {
-        isIvf && (
-          <g>
-            {ivfCentroids.map((c, i) => (
-              <g>
-                <rect
-                  x={c.x * viewW - 150}
-                  y={c.y * viewH - 60}
-                  width={300}
-                  height={120}
-                  rx={8}
-                  fill={i === ivfProbe ? '#7c5cff22' : '#7c5cff08'}
-                  stroke={i === ivfProbe ? '#7c5cff' : '#7c5cff55'}
-                  stroke-dasharray={i === ivfProbe ? undefined : '3 3'}
-                />
-                <text
-                  x={c.x * viewW - 142}
-                  y={c.y * viewH - 42}
-                  fill="#7c5cff"
-                  font-size="11"
-                  font-family="ui-monospace, monospace"
-                >
-                  cluster {i}
-                  {i === ivfProbe ? ' — probed (nearest centroid)' : ' — skipped'}
-                </text>
-                {points
-                  .filter((p) => ivfAssign[p.id] === i)
-                  .map((p) => {
-                    const px = toSvg(0.04 + p.x * 0.92, 0.06 + p.y * 0.88);
-                    const inScan = i === ivfProbe && ivfClusterScan.includes(p.id);
-                    return (
-                      <circle
-                        cx={px.x}
-                        cy={px.y}
-                        r={inScan ? 7 : 5}
-                        fill={inScan ? '#f5a623' : '#5cffb1'}
-                        opacity={i === ivfProbe ? 1 : 0.35}
-                      />
-                    );
-                  })}
-              </g>
-            ))}
-          </g>
-        )
-      }
+      {isIvf && (
+        <g>
+          {ivfCentroids.map((c, i) => (
+            <g>
+              <rect
+                x={c.x * viewW - 150}
+                y={c.y * viewH - 60}
+                width={300}
+                height={120}
+                rx={8}
+                fill={i === ivfProbe ? '#7c5cff22' : '#7c5cff08'}
+                stroke={i === ivfProbe ? '#7c5cff' : '#7c5cff55'}
+                stroke-dasharray={i === ivfProbe ? undefined : '3 3'}
+              />
+              <text
+                x={c.x * viewW - 142}
+                y={c.y * viewH - 42}
+                fill="#7c5cff"
+                font-size="11"
+                font-family="ui-monospace, monospace"
+              >
+                cluster {i}
+                {i === ivfProbe ? ' — probed (nearest centroid)' : ' — skipped'}
+              </text>
+              {points
+                .filter((p) => ivfAssign[p.id] === i)
+                .map((p) => {
+                  const px = toSvg(0.04 + p.x * 0.92, 0.06 + p.y * 0.88);
+                  const inScan = i === ivfProbe && ivfClusterScan.includes(p.id);
+                  return (
+                    <circle
+                      cx={px.x}
+                      cy={px.y}
+                      r={inScan ? 7 : 5}
+                      fill={inScan ? '#f5a623' : '#5cffb1'}
+                      opacity={i === ivfProbe ? 1 : 0.35}
+                    />
+                  );
+                })}
+            </g>
+          ))}
+        </g>
+      )}
 
       {/* flat mode = the exact baseline itself */}
-      {
-        !isHnsw && !isIvf && (
-          <g>
-            {points.map((p) => {
-              const px = toSvg(0.04 + p.x * 0.92, 0.06 + p.y * 0.88);
-              const inTop = defaultExact.ids.includes(p.id);
+      {!isHnsw && !isIvf && (
+        <g>
+          {points.map((p) => {
+            const px = toSvg(0.04 + p.x * 0.92, 0.06 + p.y * 0.88);
+            const inTop = defaultExact.ids.includes(p.id);
+            return (
+              <circle cx={px.x} cy={px.y} r={inTop ? 7 : 5} fill={inTop ? '#f5a623' : '#5cffb1'} />
+            );
+          })}
+          <text
+            x={40}
+            y={viewH - 12}
+            fill="#8b95a7"
+            font-size="10"
+            font-family="ui-monospace, monospace"
+          >
+            flat: every vector scanned — this IS the exact baseline ({POINT_COUNT} distances)
+          </text>
+        </g>
+      )}
+
+      {/* payload filter overlay (real predicate used by the trace) */}
+      {useFilter && isHnsw && (
+        <g>
+          {points
+            .filter((p) => FILTER(p.id))
+            .map((p) => {
+              const bp = bandPoint(0, p);
+              const px = toSvg(bp.x, bp.y);
               return (
                 <circle
                   cx={px.x}
                   cy={px.y}
-                  r={inTop ? 7 : 5}
-                  fill={inTop ? '#f5a623' : '#5cffb1'}
+                  r={14}
+                  fill="none"
+                  stroke="#ffb347"
+                  stroke-width="1.5"
+                  stroke-dasharray="3 3"
                 />
               );
             })}
-            <text
-              x={40}
-              y={viewH - 12}
-              fill="#8b95a7"
-              font-size="10"
-              font-family="ui-monospace, monospace"
-            >
-              flat: every vector scanned — this IS the exact baseline ({POINT_COUNT} distances)
-            </text>
-          </g>
-        )
-      }
-
-      {/* payload filter overlay (real predicate used by the trace) */}
-      {
-        useFilter && isHnsw && (
-          <g>
-            {points
-              .filter((p) => FILTER(p.id))
-              .map((p) => {
-                const bp = bandPoint(0, p);
-                const px = toSvg(bp.x, bp.y);
-                return (
-                  <circle
-                    cx={px.x}
-                    cy={px.y}
-                    r={14}
-                    fill="none"
-                    stroke="#ffb347"
-                    stroke-width="1.5"
-                    stroke-dasharray="3 3"
-                  />
-                );
-              })}
-            <text
-              x={viewW - 12}
-              y={352}
-              text-anchor="end"
-              fill="#ffb347"
-              font-size="11"
-              font-family="ui-monospace, monospace"
-            >
-              payload filter: id even — walk crosses non-matching nodes, beam holds matches only
-            </text>
-          </g>
-        )
-      }
+          <text
+            x={viewW - 12}
+            y={352}
+            text-anchor="end"
+            fill="#ffb347"
+            font-size="11"
+            font-family="ui-monospace, monospace"
+          >
+            payload filter: id even — walk crosses non-matching nodes, beam holds matches only
+          </text>
+        </g>
+      )}
 
       {/* nodes (real graph, identity = id, one glyph per layer band) */}
-      {
-        displayNodes.map((n) => {
-          const px = toSvg(n.x, n.y);
-          const color = n.layer === 2 ? '#00ffe1' : n.layer === 1 ? '#7c5cff' : '#ff5d8f';
-          const isTopK = visual.showTopK && n.layer === 0 && defaultTrace.topK.includes(n.id);
-          const visited = defaultTrace.visitedNodes.includes(n.id) && n.layer === 0;
-          return (
-            <g
-              data-nid={`${n.layer}:${n.id}`}
-              data-nlayer={n.layer}
-              data-ntopk={isTopK ? '1' : '0'}
-            >
-              {isTopK && (
-                <circle
-                  cx={px.x}
-                  cy={px.y}
-                  r={13}
-                  fill="none"
-                  stroke="#f5a623"
-                  stroke-width="2"
-                  data-topk-ring
-                />
-              )}
-              {visited && !isTopK && (
-                <circle
-                  cx={px.x}
-                  cy={px.y}
-                  r={9}
-                  fill="none"
-                  stroke="#f5a62388"
-                  stroke-width="1"
-                  data-visited-ring
-                />
-              )}
+      {displayNodes.map((n) => {
+        const px = toSvg(n.x, n.y);
+        const color = n.layer === 2 ? '#00ffe1' : n.layer === 1 ? '#7c5cff' : '#ff5d8f';
+        const isTopK = visual.showTopK && n.layer === 0 && defaultTrace.topK.includes(n.id);
+        const visited = defaultTrace.visitedNodes.includes(n.id) && n.layer === 0;
+        return (
+          <g data-nid={`${n.layer}:${n.id}`} data-nlayer={n.layer} data-ntopk={isTopK ? '1' : '0'}>
+            {isTopK && (
               <circle
                 cx={px.x}
                 cy={px.y}
-                r={n.layer === 2 ? 8 : n.layer === 1 ? 6 : 4.5}
-                fill={color}
+                r={13}
+                fill="none"
+                stroke="#f5a623"
+                stroke-width="2"
+                data-topk-ring
               />
-              {(isTopK || n.layer === graph.layers - 1) && (
-                <text
-                  x={px.x + 10}
-                  y={isTopK && n.id % 2 === 0 ? px.y + 16 : px.y - 8}
-                  fill="#c7d0de"
-                  font-size="9"
-                  font-family="ui-monospace, monospace"
-                >
-                  {n.id}
-                </text>
-              )}
-            </g>
-          );
-        })
-      }
+            )}
+            {visited && !isTopK && (
+              <circle
+                cx={px.x}
+                cy={px.y}
+                r={9}
+                fill="none"
+                stroke="#f5a62388"
+                stroke-width="1"
+                data-visited-ring
+              />
+            )}
+            <circle
+              cx={px.x}
+              cy={px.y}
+              r={n.layer === 2 ? 8 : n.layer === 1 ? 6 : 4.5}
+              fill={color}
+            />
+            {(isTopK || n.layer === graph.layers - 1) && (
+              <text
+                x={px.x + 10}
+                y={isTopK && n.id % 2 === 0 ? px.y + 16 : px.y - 8}
+                fill="#c7d0de"
+                font-size="9"
+                font-family="ui-monospace, monospace"
+              >
+                {n.id}
+              </text>
+            )}
+          </g>
+        );
+      })}
 
       {/* query marker (real query position) */}
-      {
-        isHnsw && (
-          <g data-query>
-            {(() => {
-              const qn = gpuGraph!.query;
-              const px = toSvg(qn.x, qn.y);
-              return (
-                <g>
-                  <circle
-                    cx={px.x}
-                    cy={px.y}
-                    r="14"
-                    fill="none"
-                    stroke="#ffb347"
-                    stroke-width="1.6"
-                    opacity="0.9"
-                  />
-                  <circle cx={px.x} cy={px.y} r="3.2" fill="#ffb347" />
-                  <text
-                    x={px.x + 18}
-                    y={px.y + 4}
-                    fill="#ffb347"
-                    font-size="10"
-                    font-family="ui-monospace, monospace"
-                  >
-                    query q
-                  </text>
-                </g>
-              );
-            })()}
-          </g>
-        )
-      }
+      {isHnsw && (
+        <g data-query>
+          {(() => {
+            const qn = gpuGraph!.query;
+            const px = toSvg(qn.x, qn.y);
+            return (
+              <g>
+                <circle
+                  cx={px.x}
+                  cy={px.y}
+                  r="14"
+                  fill="none"
+                  stroke="#ffb347"
+                  stroke-width="1.6"
+                  opacity="0.9"
+                />
+                <circle cx={px.x} cy={px.y} r="3.2" fill="#ffb347" />
+                <text
+                  x={px.x + 18}
+                  y={px.y + 4}
+                  fill="#ffb347"
+                  font-size="10"
+                  font-family="ui-monospace, monospace"
+                >
+                  query q
+                </text>
+              </g>
+            );
+          })()}
+        </g>
+      )}
     </svg>
   </div>
 </div>
 
 {/* Step controls + counters + narration: one trace state shared by SVG, text, and GPU. */}
-{
-  isHnsw && (
-    <div
-      class="mt-3 space-y-2"
-      data-hnsw-controls
-      data-seed={HNSW_SEED}
-      data-k={DEFAULT_K}
-      data-ef={DEFAULT_EF}
-    >
-      <div class="flex flex-wrap items-center gap-2 text-xs">
-        <button
-          type="button"
-          data-ctrl="play"
-          class="rounded border border-[var(--color-border)] px-2 py-1 hover:bg-white/5"
-          aria-pressed="false"
-        >
-          ▶ play
-        </button>
-        <button
-          type="button"
-          data-ctrl="prev"
-          class="rounded border border-[var(--color-border)] px-2 py-1 hover:bg-white/5"
-        >
-          ◀ step
-        </button>
-        <button
-          type="button"
-          data-ctrl="next"
-          class="rounded border border-[var(--color-border)] px-2 py-1 hover:bg-white/5"
-        >
-          step ▶
-        </button>
-        <button
-          type="button"
-          data-ctrl="reset"
-          class="rounded border border-[var(--color-border)] px-2 py-1 hover:bg-white/5"
-        >
-          ↺ reset
-        </button>
-        <span
-          data-hnsw-ms
-          hidden
-          class="rounded bg-black/60 px-1.5 py-0.5 font-mono text-[0.65rem] text-[var(--color-accent)]"
-        />
-        <label class="ml-2 flex items-center gap-1">
-          k
-          <input
-            type="range"
-            min="1"
-            max="6"
-            value={DEFAULT_K}
-            data-param="k"
-            class="w-16 align-middle"
-            aria-label="result count k"
-          />
-          <span data-kout class="w-4 font-mono">
-            {DEFAULT_K}
-          </span>
-        </label>
-        <label class="flex items-center gap-1">
-          ef
-          <input
-            type="range"
-            min="2"
-            max="28"
-            step="2"
-            value={DEFAULT_EF}
-            data-param="ef"
-            class="w-20 align-middle"
-            aria-label="beam width ef"
-          />
-          <span data-efout class="w-5 font-mono">
-            {DEFAULT_EF}
-          </span>
-        </label>
-      </div>
-      <p
-        class="font-mono text-[0.7rem] text-[var(--color-fg-muted)]"
-        data-step-caption
-        aria-live="polite"
+{isHnsw && (
+  <div
+    class="mt-3 space-y-2"
+    data-hnsw-controls
+    data-seed={HNSW_SEED}
+    data-k={DEFAULT_K}
+    data-ef={DEFAULT_EF}
+  >
+    <div class="flex flex-wrap items-center gap-2 text-xs">
+      <button
+        type="button"
+        data-ctrl="play"
+        class="rounded border border-[var(--color-border)] px-2 py-1 hover:bg-white/5"
+        aria-pressed="false"
       >
-        {defaultTrace.steps[defaultTrace.steps.length - 1]?.note}
-      </p>
-      <p class="font-mono text-[0.7rem] text-[var(--color-fg-muted)]" data-hnsw-stats>
-        distance evals {defaultTrace.distanceEvaluations} · visited{' '}
-        {defaultTrace.visitedNodes.length}/{POINT_COUNT} · recall {defaultRecall.toFixed(2)} vs
-        exact ({useFilter ? 'filtered, ' : ''}k={DEFAULT_K}, ef={DEFAULT_EF})
-      </p>
-      <p class="text-[0.7rem] text-[var(--color-fg-muted)]">
-        Teaching model: vectors are projected to 2D from a synthetic set so the algorithm's geometry
-        is visible — production embeddings are high-dimensional and this layout is not
-        representative of them. Results are approximate; the exact baseline is computed on the same
-        points for recall.
-      </p>
+        ▶ play
+      </button>
+      <button
+        type="button"
+        data-ctrl="prev"
+        class="rounded border border-[var(--color-border)] px-2 py-1 hover:bg-white/5"
+      >
+        ◀ step
+      </button>
+      <button
+        type="button"
+        data-ctrl="next"
+        class="rounded border border-[var(--color-border)] px-2 py-1 hover:bg-white/5"
+      >
+        step ▶
+      </button>
+      <button
+        type="button"
+        data-ctrl="reset"
+        class="rounded border border-[var(--color-border)] px-2 py-1 hover:bg-white/5"
+      >
+        ↺ reset
+      </button>
+      <span
+        data-hnsw-ms
+        hidden
+        class="rounded bg-black/60 px-1.5 py-0.5 font-mono text-[0.65rem] text-[var(--color-accent)]"
+      />
+      <label class="ml-2 flex items-center gap-1">
+        k
+        <input
+          type="range"
+          min="1"
+          max="6"
+          value={DEFAULT_K}
+          data-param="k"
+          class="w-16 align-middle"
+          aria-label="result count k"
+        />
+        <span data-kout class="w-4 font-mono">
+          {DEFAULT_K}
+        </span>
+      </label>
+      <label class="flex items-center gap-1">
+        ef
+        <input
+          type="range"
+          min="2"
+          max="28"
+          step="2"
+          value={DEFAULT_EF}
+          data-param="ef"
+          class="w-20 align-middle"
+          aria-label="beam width ef"
+        />
+        <span data-efout class="w-5 font-mono">
+          {DEFAULT_EF}
+        </span>
+      </label>
     </div>
-  )
-}
+    <p
+      class="font-mono text-[0.7rem] text-[var(--color-fg-muted)]"
+      data-step-caption
+      aria-live="polite"
+    >
+      {defaultTrace.steps[defaultTrace.steps.length - 1]?.note}
+    </p>
+    <p class="font-mono text-[0.7rem] text-[var(--color-fg-muted)]" data-hnsw-stats>
+      distance evals {defaultTrace.distanceEvaluations} · visited {defaultTrace.visitedNodes.length}
+      /{POINT_COUNT} · recall {defaultRecall.toFixed(2)} vs exact ({useFilter ? 'filtered, ' : ''}k=
+      {DEFAULT_K}, ef={DEFAULT_EF})
+    </p>
+    <p class="text-[0.7rem] text-[var(--color-fg-muted)]">
+      Teaching model: vectors are projected to 2D from a synthetic set so the algorithm's geometry
+      is visible — production embeddings are high-dimensional and this layout is not representative
+      of them. Results are approximate; the exact baseline is computed on the same points for
+      recall.
+    </p>
+  </div>
+)}
 
-{
-  isIvf && (
-    <div class="mt-3 space-y-1 text-xs text-[var(--color-fg-muted)]">
-      <p class="font-mono">
-        probed 1/4 clusters · scanned {ivfClusterIds.length}/{POINT_COUNT} vectors · skipped{' '}
-        {ivfSkipped} · recall {ivfRecall.toFixed(2)} vs exact · top-{DEFAULT_K}:{' '}
-        {ivfClusterScan.join(', ')}
-      </p>
-      <p>
-        IVF's coarse quantizer prunes clusters by centroid distance; the tradeoff is visible —
-        vectors in skipped clusters can never appear in the result, so recall is capped by the probe
-        count. Product quantization (the PQ in IVF-PQ) is a separate compression step applied inside
-        each cluster's scan; it is not the partitioning shown here.
-      </p>
-    </div>
-  )
-}
+{isIvf && (
+  <div class="mt-3 space-y-1 text-xs text-[var(--color-fg-muted)]">
+    <p class="font-mono">
+      probed 1/4 clusters · scanned {ivfClusterIds.length}/{POINT_COUNT} vectors · skipped{' '}
+      {ivfSkipped} · recall {ivfRecall.toFixed(2)} vs exact · top-{DEFAULT_K}:{' '}
+      {ivfClusterScan.join(', ')}
+    </p>
+    <p>
+      IVF's coarse quantizer prunes clusters by centroid distance; the tradeoff is visible — vectors
+      in skipped clusters can never appear in the result, so recall is capped by the probe count.
+      Product quantization (the PQ in IVF-PQ) is a separate compression step applied inside each
+      cluster's scan; it is not the partitioning shown here.
+    </p>
+  </div>
+)}
 
 <script
   is:inline

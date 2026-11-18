@@ -79,18 +79,17 @@ const toPx = (v: number, span: number) => ((v + 1) / 2) * span;
 >
   <canvas
     class="absolute inset-0 z-10 h-full w-full opacity-0 transition-opacity duration-700"
-    aria-hidden="true"></canvas>
+    aria-hidden="true"
+  ></canvas>
 
   <div class="gpu-fallback absolute inset-0 z-0">
     <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={visual.title} class="h-full w-full">
-      {
-        staticPoints.map((p) => {
-          const s = layerStyle[p.layer];
-          return (
-            <circle cx={toPx(p.x, W)} cy={toPx(p.y, H)} r={s.r} fill={s.fill} opacity={s.opacity} />
-          );
-        })
-      }
+      {staticPoints.map((p) => {
+        const s = layerStyle[p.layer];
+        return (
+          <circle cx={toPx(p.x, W)} cy={toPx(p.y, H)} r={s.r} fill={s.fill} opacity={s.opacity} />
+        );
+      })}
       <!-- query marker -->
       <circle
         cx={toPx(query.x, W)}
@@ -99,16 +98,15 @@ const toPx = (v: number, span: number) => ((v + 1) / 2) * span;
         fill="none"
         stroke="#ffb347"
         stroke-width="1.6"
-        opacity="0.9"></circle>
+        opacity="0.9"
+      ></circle>
       <circle cx={toPx(query.x, W)} cy={toPx(query.y, H)} r="3.2" fill="#ffb347"></circle>
     </svg>
   </div>
 
   <!-- Legend + status overlay: visible and accessible in both static and GPU modes. -->
   <div class="pointer-events-none absolute inset-0 z-20">
-    <div
-      class="absolute bottom-2 left-2 flex flex-wrap gap-2 font-mono text-[0.6rem] text-[var(--color-fg-muted)]"
-    >
+    <div class="absolute bottom-2 left-2 flex flex-wrap gap-2 font-mono text-[0.6rem] text-[var(--color-fg-muted)]">
       <span class="rounded bg-black/60 px-1.5 py-0.5">layer 2 · sparse · entry</span>
       <span class="rounded bg-black/60 px-1.5 py-0.5">layer 1 · mid</span>
       <span class="rounded bg-black/60 px-1.5 py-0.5">layer 0 · dense</span>
