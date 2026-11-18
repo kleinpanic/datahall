@@ -24,9 +24,12 @@ else
 fi
 
 # 2. Open Dependabot alerts
-alerts=$(gh api "repos/$REPO/dependabot/alerts?state=open&per_page=100" --jq 'length' 2>/dev/null || echo "unknown")
+# gh prints the API error body on stdout when the call is refused (the workflow
+# token gets 403 here), so anything that is not a number means "unknown".
+alerts=$(gh api "repos/$REPO/dependabot/alerts?state=open&per_page=100" --jq 'length' 2>/dev/null) || alerts="unknown"
+case "$alerts" in '' | *[!0-9]*) alerts="unknown" ;; esac
 if [ "$alerts" = "unknown" ]; then
-  summary+=("dependabot alerts: unable to query (permissions?)")
+  summary+=("dependabot alerts: unable to query with this token; CI's 'pnpm audit' step is the gate")
 elif [ "$alerts" -gt 0 ]; then
   issues=1
   summary+=("DEPENDABOT ALERTS OPEN: $alerts")
@@ -50,4 +53,8 @@ if [ "$issues" -eq 1 ]; then
   echo "HYGIENE: FAIL -- repo has open items; nothing is 'done' until these are zero."
   exit 1
 fi
-echo "HYGIENE: PASS -- no open PRs, no open alerts, main workflows green."
+if [ "$alerts" = "unknown" ]; then
+  echo "HYGIENE: PASS -- no open PRs, main workflows green; alerts not queried."
+else
+  echo "HYGIENE: PASS -- no open PRs, no open alerts, main workflows green."
+fi

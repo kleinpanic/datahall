@@ -115,10 +115,9 @@ telemetry); PostgreSQL ships `query-plan` + `index-stats`.
   snapshots to `test-results/gpu/`. `npx vgpu doctor` checks the machine;
   `npx vgpu check src/wgsl/<file>.wgsl` validates a shader on-device;
   `VGPU_ADAPTER=software` forces deterministic CPU pixels.
-- pnpm ≥ 10 will ask to approve dependency build scripts. The approvals are
-  committed in `pnpm-workspace.yaml` (`allowBuilds: @vgpu/adapter-node,
-esbuild, webgpu`), so `pnpm install` just works; CI pins pnpm 9, which
-  ignores the field.
+- pnpm asks to approve dependency build scripts. The approvals are committed
+  in `pnpm-workspace.yaml` (`allowBuilds`), so `pnpm install` works without a
+  prompt, locally and in CI.
 - To see the static storyboard only: enable reduced motion or use a browser
   without WebGPU. To verify the animated path, check that the `<canvas>`
   inside `[data-gpu-scene]` reaches non-zero opacity.
