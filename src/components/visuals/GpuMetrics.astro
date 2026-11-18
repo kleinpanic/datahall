@@ -29,54 +29,50 @@ const hasAny = Boolean(v) || util !== undefined || power !== undefined || temp !
 
 <div>
   <p class="mb-3 text-xs text-[var(--color-fg-muted)]">{visual.description}</p>
-  {
-    hasAny && (
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {v && (
-          <div class="rounded border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
-            <div class="text-[10px] tracking-widest text-[var(--color-fg-muted)] uppercase">
-              VRAM
-            </div>
-            <div class="font-mono text-lg text-[var(--color-fg)]">
-              {v.used} <span class="text-xs text-[var(--color-fg-muted)]">/ {v.total} GB</span>
-            </div>
-            <div class="mt-1 h-2 overflow-hidden rounded bg-[var(--color-bg-card)]">
-              <div class="h-2 rounded bg-[#ffb347]" style={`width:${usedPct}%`} />
-            </div>
-            <div class="mt-1 text-[10px] text-[var(--color-fg-muted)]">{v.free} GB free</div>
+  {hasAny && (
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {v && (
+        <div class="rounded border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
+          <div class="text-[10px] tracking-widest text-[var(--color-fg-muted)] uppercase">VRAM</div>
+          <div class="font-mono text-lg text-[var(--color-fg)]">
+            {v.used} <span class="text-xs text-[var(--color-fg-muted)]">/ {v.total} GB</span>
           </div>
-        )}
-        {util !== undefined && (
-          <div class="rounded border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
-            <div class="text-[10px] tracking-widest text-[var(--color-fg-muted)] uppercase">
-              Utilization
-            </div>
-            <div class="font-mono text-lg text-[var(--color-fg)]">{util}%</div>
-            <div class="mt-1 h-2 overflow-hidden rounded bg-[var(--color-bg-card)]">
-              <div class="h-2 rounded bg-[var(--color-accent)]" style={`width:${util}%`} />
-            </div>
+          <div class="mt-1 h-2 overflow-hidden rounded bg-[var(--color-bg-card)]">
+            <div class="h-2 rounded bg-[#ffb347]" style={`width:${usedPct}%`} />
           </div>
-        )}
-        {power !== undefined && (
-          <div class="rounded border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
-            <div class="text-[10px] tracking-widest text-[var(--color-fg-muted)] uppercase">
-              Power draw
-            </div>
-            <div class="font-mono text-lg text-[var(--color-fg)]">{power} W</div>
+          <div class="mt-1 text-[10px] text-[var(--color-fg-muted)]">{v.free} GB free</div>
+        </div>
+      )}
+      {util !== undefined && (
+        <div class="rounded border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
+          <div class="text-[10px] tracking-widest text-[var(--color-fg-muted)] uppercase">
+            Utilization
           </div>
-        )}
-        {temp !== undefined && (
-          <div class="rounded border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
-            <div class="text-[10px] tracking-widest text-[var(--color-fg-muted)] uppercase">
-              Temperature
-            </div>
-            <div class="font-mono text-lg" style={`color:${tempColor}`}>
-              {temp} °C
-            </div>
+          <div class="font-mono text-lg text-[var(--color-fg)]">{util}%</div>
+          <div class="mt-1 h-2 overflow-hidden rounded bg-[var(--color-bg-card)]">
+            <div class="h-2 rounded bg-[var(--color-accent)]" style={`width:${util}%`} />
           </div>
-        )}
-      </div>
-    )
-  }
+        </div>
+      )}
+      {power !== undefined && (
+        <div class="rounded border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
+          <div class="text-[10px] tracking-widest text-[var(--color-fg-muted)] uppercase">
+            Power draw
+          </div>
+          <div class="font-mono text-lg text-[var(--color-fg)]">{power} W</div>
+        </div>
+      )}
+      {temp !== undefined && (
+        <div class="rounded border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
+          <div class="text-[10px] tracking-widest text-[var(--color-fg-muted)] uppercase">
+            Temperature
+          </div>
+          <div class="font-mono text-lg" style={`color:${tempColor}`}>
+            {temp} °C
+          </div>
+        </div>
+      )}
+    </div>
+  )}
   {!hasAny && <p class="font-mono text-xs text-[var(--color-fg-muted)]">no telemetry provided</p>}
 </div>

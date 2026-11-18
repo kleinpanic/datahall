@@ -70,99 +70,95 @@ const plotted = series.map((s, i) => {
 
 <div>
   <p class="mb-3 text-xs text-[var(--color-fg-muted)]">{visual.description}</p>
-  {
-    hasData ? (
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        role="img"
-        aria-label={`${visual.title}: line chart in ${visual.unit}`}
-        class="h-auto w-full"
+  {hasData ? (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      role="img"
+      aria-label={`${visual.title}: line chart in ${visual.unit}`}
+      class="h-auto w-full"
+    >
+      {gridVals.map((gv) => (
+        <g>
+          <line
+            x1={PAD.left}
+            x2={W - PAD.right}
+            y1={y(gv)}
+            y2={y(gv)}
+            stroke="var(--color-border)"
+            stroke-width="1"
+          />
+          <text
+            x={PAD.left - 6}
+            y={y(gv) + 3}
+            text-anchor="end"
+            font-size="9"
+            font-family="ui-monospace, monospace"
+            fill="var(--color-fg-muted)"
+          >
+            {fmt(gv)}
+          </text>
+        </g>
+      ))}
+      <text
+        x={PAD.left}
+        y={H - 8}
+        font-size="9"
+        font-family="ui-monospace, monospace"
+        fill="var(--color-fg-muted)"
       >
-        {gridVals.map((gv) => (
-          <g>
-            <line
-              x1={PAD.left}
-              x2={W - PAD.right}
-              y1={y(gv)}
-              y2={y(gv)}
-              stroke="var(--color-border)"
-              stroke-width="1"
+        {fmt(tMin)}
+      </text>
+      <text
+        x={PAD.left + plotW / 2}
+        y={H - 8}
+        text-anchor="middle"
+        font-size="9"
+        font-family="ui-monospace, monospace"
+        fill="var(--color-fg-muted)"
+      >
+        {fmt(tMid)}
+      </text>
+      <text
+        x={W - PAD.right}
+        y={H - 8}
+        text-anchor="end"
+        font-size="9"
+        font-family="ui-monospace, monospace"
+        fill="var(--color-fg-muted)"
+      >
+        {fmt(tMax)}
+      </text>
+      {plotted.map((p) => (
+        <g>
+          {p.area && <path d={p.area} fill={p.color} opacity="0.07" />}
+          {p.count > 1 && (
+            <path
+              d={p.line}
+              fill="none"
+              stroke={p.color}
+              stroke-width="1.8"
+              stroke-linejoin="round"
+              stroke-linecap="round"
             />
-            <text
-              x={PAD.left - 6}
-              y={y(gv) + 3}
-              text-anchor="end"
-              font-size="9"
-              font-family="ui-monospace, monospace"
-              fill="var(--color-fg-muted)"
-            >
-              {fmt(gv)}
-            </text>
-          </g>
-        ))}
-        <text
-          x={PAD.left}
-          y={H - 8}
-          font-size="9"
-          font-family="ui-monospace, monospace"
-          fill="var(--color-fg-muted)"
-        >
-          {fmt(tMin)}
-        </text>
-        <text
-          x={PAD.left + plotW / 2}
-          y={H - 8}
-          text-anchor="middle"
-          font-size="9"
-          font-family="ui-monospace, monospace"
-          fill="var(--color-fg-muted)"
-        >
-          {fmt(tMid)}
-        </text>
-        <text
-          x={W - PAD.right}
-          y={H - 8}
-          text-anchor="end"
-          font-size="9"
-          font-family="ui-monospace, monospace"
-          fill="var(--color-fg-muted)"
-        >
-          {fmt(tMax)}
-        </text>
-        {plotted.map((p) => (
-          <g>
-            {p.area && <path d={p.area} fill={p.color} opacity="0.07" />}
-            {p.count > 1 && (
-              <path
-                d={p.line}
-                fill="none"
-                stroke={p.color}
-                stroke-width="1.8"
-                stroke-linejoin="round"
-                stroke-linecap="round"
-              />
-            )}
-            {p.last && <circle cx={p.last.x} cy={p.last.y} r="2.6" fill={p.color} />}
-          </g>
-        ))}
-      </svg>
-    ) : (
-      <p class="font-mono text-xs text-[var(--color-fg-muted)]">no series data</p>
-    )
-  }
-  {
-    hasData && (
-      <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
-        {plotted.map((p) => (
-          <span class="flex items-center gap-1.5 font-mono text-[10px] text-[var(--color-fg-muted)]">
-            <span class="inline-block h-0.5 w-3 rounded" style={`background:${p.color}`} />
-            {p.name}
-          </span>
-        ))}
-        <span class="ml-auto rounded border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-fg-muted)]">
-          {visual.unit}
+          )}
+          {p.last && <circle cx={p.last.x} cy={p.last.y} r="2.6" fill={p.color} />}
+        </g>
+      ))}
+    </svg>
+  ) : (
+    <p class="font-mono text-xs text-[var(--color-fg-muted)]">no series data</p>
+  )}
+  {hasData && (
+    <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+      {plotted.map((p) => (
+        <span class="flex items-center gap-1.5 font-mono text-[10px] text-[var(--color-fg-muted)]">
+          <span class="inline-block h-0.5 w-3 rounded" style={`background:${p.color}`} />
+          {p.name}
         </span>
-      </div>
-    )
-  }
+      ))}
+      <span class="ml-auto rounded border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-fg-muted)]">
+        {visual.unit}
+      </span>
+    </div>
+  )}
 </div>

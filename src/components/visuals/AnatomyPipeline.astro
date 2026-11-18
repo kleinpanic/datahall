@@ -277,89 +277,85 @@ const positioned = wrapped.map((stage, idx) => {
     </defs>
 
     {/* stage boxes */}
-    {
-      positioned.map((pos) => {
-        const { stage, x, cx, fill, labelY0, catY, detailY0 } = pos;
-        return (
-          <g
-            data-node-title={`${stage.label} — ${stage.detail} (category: ${stage.category})`}
-            tabindex="0"
-            role="button"
-            aria-label={`${stage.label}: ${stage.detail}`}
+    {positioned.map((pos) => {
+      const { stage, x, cx, fill, labelY0, catY, detailY0 } = pos;
+      return (
+        <g
+          data-node-title={`${stage.label} — ${stage.detail} (category: ${stage.category})`}
+          tabindex="0"
+          role="button"
+          aria-label={`${stage.label}: ${stage.detail}`}
+        >
+          <rect
+            x={x + 8}
+            y={boxY}
+            width={stageWidth - 16}
+            height={boxH}
+            rx={8}
+            fill={`${fill}22`}
+            stroke={fill}
+            stroke-width="1.5"
+          />
+          <text
+            x={cx}
+            y={labelY0}
+            text-anchor="middle"
+            fill={fill}
+            font-size={LABEL_FS}
+            font-family="ui-monospace, monospace"
           >
-            <rect
-              x={x + 8}
-              y={boxY}
-              width={stageWidth - 16}
-              height={boxH}
-              rx={8}
-              fill={`${fill}22`}
-              stroke={fill}
-              stroke-width="1.5"
-            />
-            <text
-              x={cx}
-              y={labelY0}
-              text-anchor="middle"
-              fill={fill}
-              font-size={LABEL_FS}
-              font-family="ui-monospace, monospace"
-            >
-              {stage.labelLines.map((ln, j) => (
-                <tspan x={cx} dy={j === 0 ? 0 : LABEL_LH}>
-                  {ln}
-                </tspan>
-              ))}
-            </text>
-            <text
-              x={cx}
-              y={catY}
-              text-anchor="middle"
-              fill="#8b95a7"
-              font-size={CAT_FS}
-              font-family="ui-monospace, monospace"
-            >
-              {stage.category}
-            </text>
-            <text
-              x={cx}
-              y={detailY0}
-              text-anchor="middle"
-              fill="#8b95a7"
-              font-size={DETAIL_FS}
-              font-family="ui-monospace, monospace"
-            >
-              {stage.detailLines.map((ln, j) => (
-                <tspan x={cx} dy={j === 0 ? 0 : DETAIL_LH}>
-                  {ln}
-                </tspan>
-              ))}
-            </text>
-          </g>
-        );
-      })
-    }
+            {stage.labelLines.map((ln, j) => (
+              <tspan x={cx} dy={j === 0 ? 0 : LABEL_LH}>
+                {ln}
+              </tspan>
+            ))}
+          </text>
+          <text
+            x={cx}
+            y={catY}
+            text-anchor="middle"
+            fill="#8b95a7"
+            font-size={CAT_FS}
+            font-family="ui-monospace, monospace"
+          >
+            {stage.category}
+          </text>
+          <text
+            x={cx}
+            y={detailY0}
+            text-anchor="middle"
+            fill="#8b95a7"
+            font-size={DETAIL_FS}
+            font-family="ui-monospace, monospace"
+          >
+            {stage.detailLines.map((ln, j) => (
+              <tspan x={cx} dy={j === 0 ? 0 : DETAIL_LH}>
+                {ln}
+              </tspan>
+            ))}
+          </text>
+        </g>
+      );
+    })}
 
     {/* arrows between stages */}
-    {
-      stages.slice(0, -1).map((_, k) => {
-        const x1 = PAD + k * stageWidth + stageWidth - 8;
-        const x2 = PAD + (k + 1) * stageWidth + 8;
-        return (
-          <line
-            x1={x1}
-            y1={centerY}
-            x2={x2 - 6}
-            y2={centerY}
-            stroke="#8b95a7"
-            stroke-width="1.5"
-            stroke-dasharray="4 3"
-            marker-end="url(#dh-pipe-arrow)"
-            class="dh-pulse"
-          />
-        );
-      })
-    }
+    {stages.slice(0, -1).map((_, k) => {
+      const x1 = PAD + k * stageWidth + stageWidth - 8;
+      const x2 = PAD + (k + 1) * stageWidth + 8;
+      return (
+        <line
+          x1={x1}
+          y1={centerY}
+          x2={x2 - 6}
+          y2={centerY}
+          stroke="#8b95a7"
+          stroke-width="1.5"
+          stroke-dasharray="4 3"
+          marker-end="url(#dh-pipe-arrow)"
+          class="dh-pulse"
+        />
+      );
+    })}
 
     {/* mode badge */}
     <g>
@@ -371,7 +367,8 @@ const positioned = wrapped.map((stage, idx) => {
         rx={10}
         fill="transparent"
         stroke="var(--color-border)"
-        stroke-width="1"></rect>
+        stroke-width="1"
+      ></rect>
       <text
         x={PAD + (stageWidth - 16) / 2}
         y={layoutHeight - 18}

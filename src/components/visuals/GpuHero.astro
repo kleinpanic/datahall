@@ -65,7 +65,8 @@ for (let i = 0; i < COUNT; i += 2) {
 >
   <canvas
     class="absolute inset-0 z-10 h-full w-full opacity-0 transition-opacity duration-700"
-    aria-hidden="true"></canvas>
+    aria-hidden="true"
+  ></canvas>
   <div class="absolute inset-0 z-0">
     <svg
       viewBox="0 0 720 180"
@@ -74,11 +75,9 @@ for (let i = 0; i < COUNT; i += 2) {
       preserveAspectRatio="xMidYMid slice"
       class="h-full w-full"
     >
-      {
-        heroPoints.map((p) => (
-          <circle cx={p.cx} cy={p.cy} r={p.r} fill={p.color} opacity={p.opacity} />
-        ))
-      }
+      {heroPoints.map((p) => (
+        <circle cx={p.cx} cy={p.cy} r={p.r} fill={p.color} opacity={p.opacity} />
+      ))}
     </svg>
   </div>
 </div>

@@ -67,7 +67,9 @@ const legendVisual: Visual = {
           {entry.license}
         </span>
       </div>
-      <h1 class="display-heading mb-3 text-5xl" style={`color:${entry.accent}`}>{entry.name}</h1>
+      <h1 class="display-heading mb-3 text-5xl" style={`color:${entry.accent}`}>
+        {entry.name}
+      </h1>
       <p class="max-w-3xl text-xl text-[var(--color-fg-muted)]">{entry.tagline}</p>
     </header>
 
@@ -80,58 +82,50 @@ const legendVisual: Visual = {
     </section>
 
     <section class="mb-12 grid gap-3 sm:grid-cols-2 md:grid-cols-4">
-      {
-        entry.highlights.map((h) => (
-          <div class="panel p-4">
-            <div class="font-mono text-xs tracking-wider text-[var(--color-fg-muted)] uppercase">
-              {h.label}
-            </div>
-            <div class="display-heading mt-1 text-lg" style={`color:${entry.accent}`}>
-              {h.value}
-            </div>
+      {entry.highlights.map((h) => (
+        <div class="panel p-4">
+          <div class="font-mono text-xs tracking-wider text-[var(--color-fg-muted)] uppercase">
+            {h.label}
           </div>
-        ))
-      }
+          <div class="display-heading mt-1 text-lg" style={`color:${entry.accent}`}>
+            {h.value}
+          </div>
+        </div>
+      ))}
     </section>
 
     <section class="mb-12 grid gap-4 md:grid-cols-2">
-      {
-        entry.features.map((f) => (
-          <div class="panel p-5">
-            <h3 class="display-heading mb-2 text-base" style={`color:${entry.accent}`}>
-              {f.title}
-            </h3>
-            <p class="text-sm text-[var(--color-fg-muted)]">{f.detail}</p>
-          </div>
-        ))
-      }
+      {entry.features.map((f) => (
+        <div class="panel p-5">
+          <h3 class="display-heading mb-2 text-base" style={`color:${entry.accent}`}>
+            {f.title}
+          </h3>
+          <p class="text-sm text-[var(--color-fg-muted)]">{f.detail}</p>
+        </div>
+      ))}
     </section>
 
-    {
-      entry.sections.map((s) => (
-        <section class="mb-12 max-w-3xl">
-          <h2 class="display-heading mb-4 text-2xl">
-            <span class="accent-rule mr-3 inline-block align-middle" />
-            {s.heading}
-          </h2>
-          {s.paragraphs.map((p) => (
-            <p class="mb-3 leading-relaxed text-[var(--color-fg)]">{p}</p>
-          ))}
-          {s.bullets && (
-            <ul class="mb-3 list-disc space-y-1 pl-6 text-[var(--color-fg-muted)]">
-              {s.bullets.map((b) => (
-                <li>{b}</li>
-              ))}
-            </ul>
-          )}
-          {s.code && (
-            <pre class="code-block">
+    {entry.sections.map((s) => (
+      <section class="mb-12 max-w-3xl">
+        <h2 class="display-heading mb-4 text-2xl">
+          <span class="accent-rule mr-3 inline-block align-middle" />
+          {s.heading}
+        </h2>
+        {s.paragraphs.map((p) => (
+          <p class="mb-3 leading-relaxed text-[var(--color-fg)]">{p}</p>
+        ))}
+        {s.bullets && (
+          <ul class="mb-3 list-disc space-y-1 pl-6 text-[var(--color-fg-muted)]">
+            {s.bullets.map((b) => (
+              <li>{b}</li>
+            ))}
+          </ul>
+        )}
+        {s.code && <pre class="code-block">
               <code data-lang={s.codeLanguage ?? ''}>{s.code}</code>
-            </pre>
-          )}
-        </section>
-      ))
-    }
+            </pre>}
+      </section>
+    ))}
 
     <section class="mb-12">
       <h2 class="display-heading mb-4 text-2xl">
@@ -139,7 +133,9 @@ const legendVisual: Visual = {
         Diagrams
       </h2>
       <div class="grid gap-6">
-        {entry.visuals.map((v) => <VisualModuleRenderer visual={v} />)}
+        {entry.visuals.map((v) => (
+          <VisualModuleRenderer visual={v} />
+        ))}
       </div>
     </section>
   </article>
