@@ -42,21 +42,19 @@ shader layout, and how to add a new scene.
 
 ## Run locally
 
-Requires Node.js ≥ 22.22 (Astro 7's minimum; `.nvmrc` pins 24) and pnpm. CI
-uses pnpm 9.
+Requires Node.js ≥ 22.22 (Astro 7's minimum; `.nvmrc` pins 24) and pnpm 12.
+`package.json` → `packageManager` pins the exact pnpm version; CI, Dependabot
+and Corepack all read it.
 
 ```bash
 pnpm install
 pnpm run dev          # http://localhost:4321/datahall/
 ```
 
-> **Build scripts note:** pnpm 9 and 10 only run the dependency build scripts
-> listed in `package.json` → `pnpm.onlyBuiltDependencies` (`esbuild`, `sharp`)
-> and print a warning that `@vgpu/adapter-node` and `webgpu` were skipped.
-> That is expected: the site, unit tests, and e2e tests don't need them. Only
-> `pnpm run test:gpu` (headless Dawn rendering) does — run
-> `pnpm approve-builds` first if you want it. The `allowBuilds` entry in
-> `pnpm-workspace.yaml` is only read by pnpm 11.
+> **Settings note:** pnpm 11 and later read settings only from
+> `pnpm-workspace.yaml`. The dependency `overrides` and the `allowBuilds` list
+> (`esbuild`, `sharp`, `@vgpu/adapter-node`, `webgpu`) live there, not in
+> `package.json`.
 
 ## Build for deploy
 

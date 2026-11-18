@@ -1,6 +1,15 @@
 packages:
   - '.'
+# pnpm 11 and later read settings here only; the `pnpm` field of package.json
+# is ignored. Dependabot runs the pnpm that `packageManager` names, so the
+# overrides must live here or its lockfile drops them and CI's frozen install
+# fails with ERR_PNPM_LOCKFILE_CONFIG_MISMATCH.
 allowBuilds:
   '@vgpu/adapter-node': true
   esbuild: true
+  sharp: true
   webgpu: true
+overrides:
+  '@modelcontextprotocol/server@>=2.0.0 <2.3.0': ^2.3.0
+  undici@>=8.0.0 <8.12.2: ^8.12.2
+  fast-uri@>=3.0.0 <3.1.9: ^3.1.9
