@@ -12,6 +12,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 jobs:
   automerge:
@@ -21,6 +22,7 @@ jobs:
       - name: Merge green PRs from trusted authors
         run: |
           set -uo pipefail
+          merged=0
           for pr in $(gh pr list --state open --limit 50 --json number,author \
               --jq '.[] | select(.author.login == "app/dependabot" or .author.login == "dependabot[bot]" or .author.login == "datahall-dev" or .author.login == "kleinpanic" or .author.login == "app/github-actions") | .number'); do
             echo "::group::PR $pr"
@@ -30,12 +32,36 @@ jobs:
             # 1=failed, 8=pending.
             if gh pr checks "$pr" > /dev/null 2>&1; then
               echo "checks green, merging #$pr"
-              gh pr merge "$pr" --squash --delete-branch || echo "merge failed (conflicts?) skipping"
+              if gh pr merge "$pr" --squash --delete-branch; then
+                merged=$((merged + 1))
+              else
+                echo "merge failed (conflicts?) skipping"
+              fi
             else
               echo "checks not green or pending, skipping #$pr"
+              # A Dependabot lockfile can pin a package younger than pnpm's
+              # one-day minimumReleaseAge. That CI run fails today and would
+              # pass tomorrow, but nothing starts it again. Re-run a failed
+              # run once it is a day old, three attempts at most.
+              run=$(gh pr checks "$pr" --json state,link \
+                --jq '[.[] | select(.state == "FAILURE") | .link | capture("/runs/(?<id>[0-9]+)").id] | first // empty' 2>/dev/null || true)
+              if [ -n "$run" ]; then
+                read -r attempt updated < <(gh run view "$run" --json attempt,updatedAt --jq '"\(.attempt) \(.updatedAt)"')
+                age=$(( $(date -u +%s) - $(date -u -d "$updated" +%s) ))
+                if [ "$age" -ge 86400 ] && [ "$attempt" -lt 3 ]; then
+                  echo "failed run $run is $((age / 3600))h old (attempt $attempt), re-running"
+                  gh run rerun "$run" --failed || echo "re-run refused"
+                fi
+              fi
             fi
             echo "::endgroup::"
           done
+          # A merge made with the workflow token starts no push workflow, so
+          # main would never be tested or deployed after an auto-merge.
+          if [ "$merged" -gt 0 ]; then
+            gh workflow run ci.yml --ref main
+            gh workflow run deploy.yml --ref main
+          fi
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}

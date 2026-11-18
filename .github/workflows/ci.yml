@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # auto-merge.yml starts this after it merges: its token cannot fire `push`.
+  workflow_dispatch: {}
 
 jobs:
   verify:
